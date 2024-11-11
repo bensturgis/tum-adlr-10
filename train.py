@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
+import matplotlib.pyplot as plt
 
 def create_dataloader(states, actions, next_states, batch_size):
     state_tensor = torch.tensor(states, dtype=torch.float32)
@@ -16,6 +17,7 @@ def train_model(model, dataloader, num_epochs, learning_rate):
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     loss_fn = nn.MSELoss()
     
+    loss_save = []
     for epoch in range(num_epochs):
         total_loss = 0.0
         for state_batch, action_batch, next_state_batch in dataloader:
@@ -26,4 +28,7 @@ def train_model(model, dataloader, num_epochs, learning_rate):
             optimizer.step()
             total_loss += loss.item() * state_batch.size(0)
         average_loss = total_loss / len(dataloader.dataset)
+        loss_save.append(average_loss)
         print(f'Epoch {epoch+1}/{num_epochs}, Loss: {average_loss:.6f}')
+    plt.plot(loss_save)
+    plt.show()

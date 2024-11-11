@@ -4,15 +4,17 @@ from gymnasium import spaces
 import pygame
 import platform
 import ctypes
+import torch
 
 class MassSpringDamperEnv(gym.Env):
-    def __init__(self, m=0.1, c=1.0, d=0.1, delta_t=0.01, nlin = False):
+    def __init__(self, m=0.1, k=1.0, d=0.1, delta_t=0.01, nlin=False, model=None):
         super(MassSpringDamperEnv, self).__init__()
 
         # Physical parameters
         self.nonlinear = nlin
+        self.model = model
         self.m = m
-        self.c = c
+        self.k = k
         self.d = d
         self.delta_t = delta_t  # Time step for discretization
         self.input_limit = 10.0
@@ -42,20 +44,32 @@ class MassSpringDamperEnv(gym.Env):
         x, v = self.state
 
         # Apply force (action)
-        F = action
+        F = action.squeeze()
+
+        # Apply model when exists
+        if self.model != None:
+            s = torch.tensor(self.state, dtype=torch.float32).unsqueeze(0)
+            a = torch.tensor(action, dtype=torch.float32).unsqueeze(0)
+            next_state = self.model(s, a)
+            self.state = next_state.squeeze(0).detach().numpy()
+            
+            reward = -np.sum(np.square(self.state))
+            terminated = False
+            truncated = False
+
+            return self.state, reward, terminated, truncated, {}
 
         # Non-linear stiffness
         if self.nonlinear == True:
-            c = np.tanh(x)
+            f_k = np.tanh(x)
+            x_ = x + self.delta_t * v
+            v_ = v + self.delta_t * (-self.d * v - f_k + F) / self.m
+            self.state = np.array([x_, v_])
         else:
-            c = self.c
+            A = np.array([[0, 1], [-self.k / self.m, -self.d / self.m]])
+            B = np.array([0, 1 / self.m])
 
-        # Continious system dynamics
-        A = np.array([[0, 1], [-c / self.m, -self.d / self.m]])
-        B = np.array([0, 1 / self.m])
-
-        # Calculate the next state
-        self.state = (np.eye(2) + self.delta_t * A) @ self.state + self.delta_t * B * F
+            self.state = (np.eye(2) + self.delta_t * A) @ self.state + self.delta_t * B * F
 
         # Calculate reward (deviation from origin)
         reward = -np.sum(np.square(self.state))
