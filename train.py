@@ -39,7 +39,7 @@ def train_model(model, train_dataloader, test_dataloader, num_epochs, learning_r
                 total_loss += loss.item() * state_batch.size(0)
             test_loss = total_loss / len(test_dataloader.dataset)
             loss_save[1].append(test_loss)
-        print(f'Epoch {epoch+1}/{num_epochs}, Loss: {average_loss:.6f}, Test Loss: {test_loss:.6f}')
+        print(f'Epoch {epoch+1}/{num_epochs}, Train Loss: {average_loss:.6f}, Test Loss: {test_loss:.6f}')
     plt.plot(loss_save[0], label='train')
     plt.plot(loss_save[1], label='test')
     plt.xlabel('Epochs')
