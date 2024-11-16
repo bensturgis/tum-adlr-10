@@ -26,7 +26,7 @@ class MassSpringDamperEnv(gym.Env):
         self.action_space = spaces.Box(low=-self.input_limit, high=self.input_limit, shape=(1,), dtype=np.float32)
 
         # Observation space: [position, velocity]
-        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(2,), dtype=np.float32)
+        self.observation_space = spaces.Box(low=-6, high=6, shape=(2,), dtype=np.float32)
 
         # Initialize pygame for rendering
         self.screen = None
