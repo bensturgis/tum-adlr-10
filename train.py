@@ -48,9 +48,9 @@ def train_model(model, train_dataloader, test_dataloader=None,
                 best_loss = average_test_loss
                 torch.save(model.state_dict(), "best_model.pth")
 
-            print(f"Epoch {epoch+1}/{num_epochs}, Train Loss: {average_train_loss:.6f}, Test Loss: {average_test_loss:.6f}")
-        else:
-            print(f"Epoch {epoch+1}/{num_epochs}, Train Loss: {average_train_loss:.6f}")
+        #     print(f"Epoch {epoch+1}/{num_epochs}, Train Loss: {average_train_loss:.6f}, Test Loss: {average_test_loss:.6f}")
+        # else:
+        #     print(f"Epoch {epoch+1}/{num_epochs}, Train Loss: {average_train_loss:.6f}")
 
     # Plot losses
     if plot:

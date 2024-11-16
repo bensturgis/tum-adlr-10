@@ -13,3 +13,12 @@ class FeedforwardNN(nn.Module):
     def forward(self, state, action):
         x = torch.cat([state, action], dim=1)
         return self.model(x)
+    
+    def reset_weights(self):
+        """
+        Resets the weights of the network.
+        """
+        for layer in self.modules():
+            if hasattr(layer, 'reset_parameters'):
+                # Use the default initialization
+                layer.reset_parameters()
