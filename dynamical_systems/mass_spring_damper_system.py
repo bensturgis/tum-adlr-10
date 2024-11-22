@@ -34,7 +34,11 @@ class MassSpringDamperEnv(gym.Env):
         self.mass_pos = self.width // 2  # Initial mass position in the middle
         self.spring_origin = self.mass_pos - 200  # Fixed point for spring start
     
-    def reset(self):
+    def reset(self, state=None):
+        # Reset state to given conditions
+        if state is not None:
+            self.state = state
+            return self.state, {}
         # Reset state to initial conditions
         self.state = np.array([0.0, 0.0])  # Start at rest
         return self.state, {}
@@ -47,7 +51,7 @@ class MassSpringDamperEnv(gym.Env):
         F = action.squeeze()
 
         # Apply model when exists
-        if self.model != None:
+        if self.model is not None:
             s = torch.tensor(self.state, dtype=torch.float32).unsqueeze(0)
             a = torch.tensor(action, dtype=torch.float32).unsqueeze(0)
             next_state = self.model(s, a)
