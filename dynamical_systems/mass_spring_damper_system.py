@@ -5,6 +5,8 @@ import pygame
 import platform
 import ctypes
 import torch
+from models.feedforward_nn import FeedforwardNN
+from models.mc_dropout_bnn import MCDropoutBNN_Wrapper
 
 class MassSpringDamperEnv(gym.Env):
     def __init__(self, m=0.1, k=1.0, d=0.1, delta_t=0.01, nlin=False, model=None):
@@ -52,16 +54,29 @@ class MassSpringDamperEnv(gym.Env):
 
         # Apply model when exists
         if self.model is not None:
-            s = torch.tensor(self.state, dtype=torch.float32).unsqueeze(0)
-            a = torch.tensor(action, dtype=torch.float32).unsqueeze(0)
-            next_state = self.model(s, a)
-            self.state = next_state.squeeze(0).detach().numpy()
-            
-            reward = -np.sum(np.square(self.state))
-            terminated = False
-            truncated = False
+            if isinstance(self.model, MCDropoutBNN_Wrapper):
+                s = torch.tensor(self.state, dtype=torch.float32).unsqueeze(0)
+                a = torch.tensor(action, dtype=torch.float32).unsqueeze(0)
+                next_state, pred_var = self.model.bayesian_pred(s, a)
+                self.state = next_state.squeeze(0)
+                
+                reward = -np.sum(np.square(self.state))
+                terminated = False
+                truncated = False
+                info = {"var":pred_var.squeeze(0)} # output variance of predictive distribution
 
-            return self.state, reward, terminated, truncated, {}
+                return self.state, reward, terminated, truncated, info
+            if isinstance(self.model, FeedforwardNN):
+                s = torch.tensor(self.state, dtype=torch.float32).unsqueeze(0)
+                a = torch.tensor(action, dtype=torch.float32).unsqueeze(0)
+                next_state = self.model(s, a)
+                self.state = next_state.squeeze(0).detach().numpy()
+                
+                reward = -np.sum(np.square(self.state))
+                terminated = False
+                truncated = False
+
+                return self.state, reward, terminated, truncated, {}
 
         # Non-linear stiffness
         if self.nonlinear == True:
