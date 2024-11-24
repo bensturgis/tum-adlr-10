@@ -48,7 +48,7 @@ def train_model(model, train_dataloader, test_dataloader=None,
             # Save best model
             if average_test_loss < best_loss:
                 best_loss = average_test_loss
-                torch.save(model.state_dict(), "best_model.pth")
+                torch.save(model.state_dict(), "../weights/best_model.pth")
 
         #     print(f"Epoch {epoch+1}/{num_epochs}, Train Loss: {average_train_loss:.6f}, Test Loss: {average_test_loss:.6f}")
         # else:
