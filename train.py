@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 
 def create_dataloader(dataset, batch_size):
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
@@ -19,7 +20,8 @@ def train_model(model, train_dataloader, test_dataloader=None,
         # Training loop
         model.train()
         total_train_loss = 0.0
-        for state_batch, action_batch, next_state_batch in train_dataloader:
+        train_bar = tqdm(train_dataloader, desc=f"Epoch {epoch+1}/{num_epochs}")
+        for state_batch, action_batch, next_state_batch in train_bar:
             optimizer.zero_grad()
             pred_next_state = model(state_batch, action_batch)
             loss = loss_fn(pred_next_state, next_state_batch)
