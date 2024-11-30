@@ -18,8 +18,8 @@ def random_exploration(env, horizon):
     actions = []
     next_states = []
     
-    # Reset the environment to get the initial state
-    state, _ = env.reset()
+    # Reset the environment to initial state
+    _, _ = env.reset()
     
     # Perform exploration for up to 'horizon' steps
     for _ in range(horizon):    
