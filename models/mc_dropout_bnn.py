@@ -4,14 +4,17 @@ import torch.optim as optim
 import matplotlib.pyplot as plt
 
 class MCDropoutBNN(nn.Module):
-    def __init__(self, state_dim, action_dim, hidden_size=64, drop_prob=0.5):
+    def __init__(self, state_dim, action_dim, hidden_size=64, drop_prob=0.5, device=None):
         super(MCDropoutBNN, self).__init__()
+        self.device = device
         self.model = nn.Sequential(
             nn.Linear(state_dim + action_dim, hidden_size),
             nn.ReLU(inplace = True),
             nn.Dropout(drop_prob),
             nn.Linear(hidden_size, state_dim),
         )
+        if self.device is not None:
+            self.to(self.device)
 
     def forward(self, state, action):
         x = torch.cat([state, action], dim=1)
@@ -33,15 +36,16 @@ class MCDropoutBNN(nn.Module):
         """
         self.model.train()  # Ensure Dropout is enabled
 
-        preds = []
-        for _ in range(num_samples):
-            preds.append(self.forward(state, action))  # Run forward pass with Dropout enabled
+        if self.device is not None:
+            state = state.to(self.device)
+            action = action.to(self.device)
+        state_batch = state.repeat(num_samples, 1)
+        action_batch = action.repeat(num_samples, 1)
+        preds = self.forward(state_batch, action_batch)  # torch.Size([100, 2])
 
-        preds = torch.stack(preds)  # Shape: (num_samples, batch_size, state_dim)
-        
         # Calculate mean and variance along the sampling dimension
-        mean_pred = preds.mean(dim=0).detach().numpy()
-        var_pred = preds.var(dim=0).detach().numpy()
+        mean_pred = preds.mean(dim=0).detach().cpu().numpy()
+        var_pred = preds.var(dim=0).detach().cpu().numpy()
 
         return mean_pred, var_pred
 
@@ -63,4 +67,5 @@ class MCDropoutBNN(nn.Module):
                 layer.reset_parameters()
             
     def load_state_dict(self, params):
+        params = {k: v.to(self.device) for k, v in params.items()}
         self.model.load_state_dict(params)

@@ -11,9 +11,12 @@ def create_dataloader(dataset, batch_size):
 
 def train_model(model, train_dataloader, test_dataloader=None,
                 num_epochs=10, learning_rate=0.001, plot=False):
+    device = next(model.parameters()).device
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     loss_fn = nn.MSELoss()
     loss_save = [[], []]  # Train loss, Test loss
+    average_train_loss = 0
+    average_test_loss = 0
     best_loss = float("inf")
 
     for epoch in range(num_epochs):
@@ -22,12 +25,20 @@ def train_model(model, train_dataloader, test_dataloader=None,
         total_train_loss = 0.0
         train_bar = tqdm(train_dataloader, desc=f"Epoch {epoch+1}/{num_epochs}")
         for state_batch, action_batch, next_state_batch in train_bar:
+            state_batch, action_batch, next_state_batch = (
+                state_batch.to(device),
+                action_batch.to(device),
+                next_state_batch.to(device)
+            )
             optimizer.zero_grad()
             pred_next_state = model(state_batch, action_batch)
             loss = loss_fn(pred_next_state, next_state_batch)
             loss.backward()
             optimizer.step()
             total_train_loss += loss.item() * state_batch.size(0)
+            train_bar.set_description(
+            f"Epoch {epoch+1}/{num_epochs} Loss: {average_train_loss:.6f} Test: {average_test_loss:.6f}"
+            )
 
         average_train_loss = total_train_loss / len(train_dataloader.dataset)
         loss_save[0].append(average_train_loss)
@@ -38,6 +49,11 @@ def train_model(model, train_dataloader, test_dataloader=None,
             total_test_loss = 0.0
             with torch.no_grad():
                 for state_batch, action_batch, next_state_batch in test_dataloader:
+                    state_batch, action_batch, next_state_batch = (
+                        state_batch.to(device),
+                        action_batch.to(device),
+                        next_state_batch.to(device)
+                    )
                     pred_next_state = model(state_batch, action_batch)
                     loss = loss_fn(pred_next_state, next_state_batch)
                     total_test_loss += loss.item() * state_batch.size(0)
@@ -49,10 +65,7 @@ def train_model(model, train_dataloader, test_dataloader=None,
             if average_test_loss < best_loss:
                 best_loss = average_test_loss
                 torch.save(model.state_dict(), "../weights/best_model.pth")
-
-        #     print(f"Epoch {epoch+1}/{num_epochs}, Train Loss: {average_train_loss:.6f}, Test Loss: {average_test_loss:.6f}")
-        # else:
-        #     print(f"Epoch {epoch+1}/{num_epochs}, Train Loss: {average_train_loss:.6f}")
+        
 
     # Plot losses
     if plot:

@@ -58,12 +58,12 @@ class MassSpringDamperEnv(gym.Env):
                 s = torch.tensor(self.state, dtype=torch.float32).unsqueeze(0)
                 a = torch.tensor(action, dtype=torch.float32).unsqueeze(0)
                 next_state, pred_var = self.model.bayesian_pred(s, a)
-                self.state = next_state.squeeze(0)
+                self.state = next_state
                 
                 reward = -np.sum(np.square(self.state))
                 terminated = False
                 truncated = False
-                info = {"var": pred_var.squeeze(0)} # output variance of predictive distribution
+                info = {"var": pred_var} # output variance of predictive distribution
 
                 return self.state, reward, terminated, truncated, info
             
