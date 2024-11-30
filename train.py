@@ -10,9 +10,9 @@ def create_dataloader(dataset, batch_size):
     return dataloader
 
 def train_model(model, train_dataloader, test_dataloader=None,
-                num_epochs=10, learning_rate=0.001, plot=False):
+                num_epochs=10, learning_rate=0.001, weight_decay=1e-4, plot=False):
     device = next(model.parameters()).device
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     loss_fn = nn.MSELoss()
     loss_save = [[], []]  # Train loss, Test loss
     average_train_loss = 0

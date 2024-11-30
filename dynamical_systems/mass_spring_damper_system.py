@@ -9,11 +9,12 @@ from models.feedforward_nn import FeedforwardNN
 from models.mc_dropout_bnn import MCDropoutBNN
 
 class MassSpringDamperEnv(gym.Env):
-    def __init__(self, m=0.1, k=1.0, d=0.1, delta_t=0.01, nlin=False, model=None):
+    def __init__(self, m=0.1, k=1.0, d=0.1, delta_t=0.01, nlin=False, noise_var=0.1,model=None):
         super(MassSpringDamperEnv, self).__init__()
 
         # Physical parameters
         self.nonlinear = nlin
+        self.noise_var = noise_var
         self.model = model
         self.m = m
         self.k = k
@@ -90,6 +91,7 @@ class MassSpringDamperEnv(gym.Env):
             B = np.array([0, 1 / self.m])
 
             self.state = (np.eye(2) + self.delta_t * A) @ self.state + self.delta_t * B * F
+        self.state = np.random.normal(loc=self.state, scale=self.noise_var, size=(2,)) # add gaussian noise
 
         # Calculate reward (deviation from origin)
         reward = -np.sum(np.square(self.state))
