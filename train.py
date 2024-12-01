@@ -11,6 +11,7 @@ def create_dataloader(dataset, batch_size):
 
 def train_model(model, train_dataloader, test_dataloader=None,
                 num_epochs=10, learning_rate=0.001, weight_decay=1e-4, plot=False):
+    print("Start training process.")
     device = next(model.parameters()).device
     optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     loss_fn = nn.MSELoss()
@@ -36,9 +37,16 @@ def train_model(model, train_dataloader, test_dataloader=None,
             loss.backward()
             optimizer.step()
             total_train_loss += loss.item() * state_batch.size(0)
-            train_bar.set_description(
-            f"Epoch {epoch+1}/{num_epochs} Loss: {average_train_loss:.6f} Test: {average_test_loss:.6f}"
-            )
+            current_train_loss = total_train_loss / len(train_dataloader.dataset)
+            if test_dataloader:
+                current_test_loss = "N/A" if epoch == 0 else average_test_loss
+                train_bar.set_description(
+                    f"Epoch {epoch+1}/{num_epochs} Train Loss: {current_train_loss:.6f} Test Loss: {current_test_loss:.6f}"
+                )
+            else:
+                train_bar.set_description(
+                    f"Epoch {epoch+1}/{num_epochs} Train Loss: {current_train_loss:.6f}"
+                )
 
         average_train_loss = total_train_loss / len(train_dataloader.dataset)
         loss_save[0].append(average_train_loss)
