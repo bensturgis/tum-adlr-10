@@ -1,30 +1,36 @@
+import gymnasium as gym
 import matplotlib.pyplot as plt
 import numpy as np
 from train import create_dataloader, train_model
-from sampling_methods.random_exploration import random_exploration
+from sampling_methods.sampling_method import SamplingMethod
+from sampling_methods.random_exploration import RandomExploration
 from utils import combine_datasets
 from metrics.one_step_pred_accuracy import compute_one_step_pred_accuracy
-
+import typing
 
 class ActiveLearningEvaluator():
-    def __init__(self, true_env, learned_env, horizon, num_al_iterations,
-                 num_epochs, batch_size, learning_rate, num_eval_repetitions=20):
+    def __init__(
+            self, true_env: gym.Env, learned_env: gym.Env, sampling_method: SamplingMethod,
+            num_al_iterations: int, num_epochs: int, batch_size: int,
+            learning_rate: float, num_eval_repetitions: int = 20
+        ) -> None:
         """
         Initializes the ActiveLearningEvaluator with the necessary configurations.
 
         Args:
-            true_env: The true environment for data collection.
-            learned_env: The learned environment using a dynamics model.
-            horizon (T): Time horizon for trajectory sampling, referred to as T in the paper.
-            num_al_iterations (N_{AL}): Number of active learning iterations, referred to as N_{AL} in the paper.
-            num_epochs: Number of epochs for training the dynamics model.
-            batch_size: Batch size for the training dataloader.
-            learning_rate: Learning rate for the optimizer.
+            true_env (gym.Env): The true environment for data collection.
+            learned_env (gym.Env): The learned environment using a dynamics model.
+            sampling_method (SamplingMethod): Method to collect (state, action, next state) pairs.
+            num_al_iterations (N_{AL}) (int): Number of active learning iterations.
+            num_epochs (int): Number of epochs for training the dynamics model.
+            batch_size (int): Batch size for the training dataloader.
+            learning_rate (float): Learning rate for the optimizer.
+            num_eval_repetitions (int): Number of evaluation repetitions to compute robust metrics.
         """    
-        self.horizon = horizon
-        self.num_al_iterations = num_al_iterations
         self.true_env = true_env
         self.learned_env = learned_env
+        self.sampling_method = sampling_method
+        self.num_al_iterations = num_al_iterations
         self.num_epochs = num_epochs
         self.batch_size = batch_size
         self.learning_rate = learning_rate
@@ -44,10 +50,11 @@ class ActiveLearningEvaluator():
         all_accuracies = []
         
         for repetition in range(self.num_eval_repetitions):
-            print(f"Repetition {repetition + 1}/{self.num_eval_repetitions}")
+            print(f"Evaluation Repetition {repetition + 1}/{self.num_eval_repetitions}")
 
             # Collect initial dataset using random exploration
-            total_dataset = random_exploration(self.true_env, self.horizon)
+            random_exploration = RandomExploration(self.sampling_method.horizon)
+            total_dataset = random_exploration.sample(self.true_env)
             
             # Initialize a list to store one-step predictive accuracy for each iteration
             accuracy_history = []
@@ -64,7 +71,7 @@ class ActiveLearningEvaluator():
                 train_dataloader = create_dataloader(total_dataset, self.batch_size)
                 
                 # Train the dynamics model using the training dataloader
-                train_model(self.learned_env.model, train_dataloader=train_dataloader,
+                train_model(model=self.learned_env.model, train_dataloader=train_dataloader,
                             num_epochs=self.num_epochs, learning_rate=self.learning_rate)           
                 
                 # Evaluate the model in inference mode
@@ -81,8 +88,8 @@ class ActiveLearningEvaluator():
                 # Append the accuracy to the history for plotting
                 accuracy_history.append(one_step_pred_accuracy)
                 
-                # Collect new data using random exploration
-                new_dataset = random_exploration(self.true_env, self.horizon)
+                # Collect new data using sampling method
+                new_dataset = self.sampling_method.sample(self.true_env, self.learned_env)
                 
                 # Combine the new dataset with the existing total dataset
                 total_dataset = combine_datasets(total_dataset, new_dataset)
@@ -96,19 +103,19 @@ class ActiveLearningEvaluator():
 
         # Plot the results
         iterations = range(1, self.num_al_iterations + 1)
-        plt.figure(figsize=(10, 6))
+        plt.figure(num="One Step Predictive Accuracy over Active Learning Iterations", figsize=(10, 6))
 
         # Plot the mean accuracies
         plt.plot(iterations, mean_accuracies, label="Mean Accuracy", color="blue")
 
-        # Add error bars with small caps for the standard deviation
+        # Add error bars with caps for the standard deviation
         plt.errorbar(iterations, mean_accuracies, yerr=std_accuracies, fmt='o', 
                      ecolor='blue', capsize=3, elinewidth=1, label="±1 Standard Deviation")
 
         # Customize the plot
         plt.xlabel("Active Learning Iteration")
         plt.ylabel("One-Step Predictive Accuracy")
-        plt.title("Mean and Standard Deviation of Accuracy Across Active Learning Iterations")
+        plt.title("One Step Predictive Accuracy over Active Learning Iterations")
         plt.legend()
         plt.grid(True)
         plt.show()
