@@ -36,7 +36,7 @@ class ActiveLearningEvaluator():
         self.learning_rate = learning_rate
         self.num_eval_repetitions = num_eval_repetitions
 
-    def active_learning(self):
+    def active_learning(self) -> None:
         """
         Implements Algorithm 1 from the paper: Actively learning dynamical systems 
         using Bayesian neural networks.

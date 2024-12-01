@@ -9,6 +9,9 @@ class RandomExploration(SamplingMethod):
     def __init__(self, horizon: int) -> None:
         """
         Initialize RandomExploration object.
+
+        Args:
+            horizon (T) (int): The total planning horizon (T).
         """
         super().__init__(horizon=horizon)
 

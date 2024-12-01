@@ -5,6 +5,8 @@ import pygame
 import platform
 import ctypes
 import torch
+from typing import Tuple, Any
+
 from models.feedforward_nn import FeedforwardNN
 from models.mc_dropout_bnn import MCDropoutBNN
 
@@ -46,7 +48,7 @@ class MassSpringDamperEnv(gym.Env):
         self.state = np.array([0.0, 0.0])  # Start at rest
         return self.state, {}
 
-    def step(self, action):
+    def step(self, action: np.array) -> Tuple[Any, float, bool, bool, dict]:
         # Unpack state
         x, v = self.state
 
@@ -81,7 +83,7 @@ class MassSpringDamperEnv(gym.Env):
                 return self.state, reward, terminated, truncated, {}
 
         # Non-linear stiffness
-        if self.nonlinear == True:
+        if self.nonlinear:
             f_k = np.tanh(x)
             x_ = x + self.delta_t * v
             v_ = v + self.delta_t * (-self.d * v - f_k + F) / self.m
