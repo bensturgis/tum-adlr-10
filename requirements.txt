@@ -1,0 +1,7 @@
+numpy
+gymnasium
+pygame
+torch
+matplotlib
+tqdm
+gym
