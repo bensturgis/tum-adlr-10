@@ -88,11 +88,13 @@ class ActiveLearningEvaluator():
                 # Append the accuracy to the history for plotting
                 accuracy_history.append(one_step_pred_accuracy)
                 
-                # Collect new data using sampling method
-                new_dataset = self.sampling_method.sample(self.true_env, self.learned_env)
-                
-                # Combine the new dataset with the existing total dataset
-                total_dataset = combine_datasets(total_dataset, new_dataset)
+                # Collect new data only if further training iterations remain
+                if iteration < self.num_al_iterations - 1:
+                    # Sample new data using the specified sampling method
+                    new_dataset = self.sampling_method.sample(self.true_env, self.learned_env)
+                    
+                    # Merge the new dataset with the existing dataset
+                    total_dataset = combine_datasets(total_dataset, new_dataset)
         
             # Append this repetition's accuracy history to the main list
             all_accuracies.append(accuracy_history)
