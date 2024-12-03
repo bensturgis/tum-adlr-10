@@ -65,19 +65,26 @@ class RandomSamplingShooting(SamplingMethod):
         # Save the initial state for the particle trajectories
         start_state = env.unwrapped.state
         
-        R = 0
-        for _ in range(num_particles):
-            particle_R = 0
-            for a in action_seq:
-                _, _, terminated, truncated, info = env.step(a)
-                # Accumulate entropy for the current particle
-                particle_R += (1. / num_particles) * self.differential_entropy(info["var"])
-                if terminated or truncated:
-                    break
-            # Add the normalized reward for the particle
-            R += (1. / num_particles) * particle_R 
-            # Reset to the initial state for each particle
-            env.unwrapped.state = start_state
+        # record (s,a) sequences from P trajectories
+        H = len(action_seq) # horizon
+        Ds = env.observation_space.shape[0] # state dimension
+        Da = env.action_space.shape[0] # action dimension
+        device = next(env.unwrapped.model.parameters()).device
+        states = torch.zeros([num_particles, H, Ds], device=device) # states record [P, H, Ds]
+        actions = torch.zeros([num_particles, H, Da], device=device) # actions record [P, H, Da]
+        states[:, 0] = torch.from_numpy(start_state).to(device)
+        actions[:, :] = torch.from_numpy(action_seq).to(device)
+        for k in range(H-1): # parallelize P trajectory collection
+            states[:, k+1] = env.unwrapped.model(states[:, k], actions[:, k])
+        states_batch = states.view(num_particles*H, Ds)
+        actions_batch = actions.view(num_particles*H, Da)
+        _, var_list = env.unwrapped.model.bayesian_pred(states_batch, actions_batch)
+        # data in var_list(np.ndarray): along one trajectory(H) and then particles(P)
+        vars = var_list.reshape(num_particles, H, Ds)
+        # directly calc diff_entropy of trajectories
+        const = H * Ds * np.log(np.sqrt(2 * np.pi * np.e))
+        diff_entrop_list = const + (1. / 2.) * np.sum(np.log(vars), axis=(1,2)) # directly sum over [H, Ds] to get accumulated entropy for a traj
+        R = np.mean(diff_entrop_list) # average on particle dimension
 
         return R
                 
@@ -114,7 +121,7 @@ class RandomSamplingShooting(SamplingMethod):
             performances = np.zeros(self.num_action_seq)
             for k, action_seq in enumerate(action_seqs):
                 performances[k] = self.action_seq_performance(learned_env, action_seq, self.num_particles)
-                if (k+1) % 50 == 0:
+                if (k+1) % 1000 == 0:
                     print(f"Evaluated performance of {k+1} out of {self.num_action_seq} randomly sampled action sequences.")
 
             # Choose the best action sequence (highest performance)

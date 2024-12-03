@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-import gym
+import gymnasium as gym
 from torch.utils.data import TensorDataset
 
 class SamplingMethod(ABC):

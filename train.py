@@ -10,7 +10,7 @@ def create_dataloader(dataset, batch_size):
     return dataloader
 
 def train_model(model, train_dataloader, test_dataloader=None,
-                num_epochs=10, learning_rate=0.001, weight_decay=1e-4, plot=False):
+                num_epochs=10, learning_rate=0.001, weight_decay=1e-4, plot=False, save_name="best_model"):
     print("Start training process.")
     device = next(model.parameters()).device
     optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
@@ -39,7 +39,7 @@ def train_model(model, train_dataloader, test_dataloader=None,
             total_train_loss += loss.item() * state_batch.size(0)
             current_train_loss = total_train_loss / len(train_dataloader.dataset)
             if test_dataloader:
-                current_test_loss = "N/A" if epoch == 0 else average_test_loss
+                current_test_loss = torch.nan if epoch == 0 else average_test_loss
                 train_bar.set_description(
                     f"Epoch {epoch+1}/{num_epochs} Train Loss: {current_train_loss:.6f} Test Loss: {current_test_loss:.6f}"
                 )
@@ -72,7 +72,7 @@ def train_model(model, train_dataloader, test_dataloader=None,
             # Save best model
             if average_test_loss < best_loss:
                 best_loss = average_test_loss
-                torch.save(model.state_dict(), "../weights/best_model.pth")
+                torch.save(model.model.state_dict(), f"../weights/{save_name}.pth")
         
 
     # Plot losses

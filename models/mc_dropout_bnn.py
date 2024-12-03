@@ -20,32 +20,38 @@ class MCDropoutBNN(nn.Module):
         x = torch.cat([state, action], dim=1)
         return self.model(x)
 
-    def bayesian_pred(self, state, action, num_samples=100):
+    def bayesian_pred(self, state, action, num_samples=50): # TODO: how many repeats do we need to get good distribution prediction?
         """
         Perform Bayesian prediction by running the model multiple times (MC Dropout)
-        and calculate the mean and variance of the predictions.
+        and calculate the mean and variance of the predictions.y
+
+        Takes a batch of input samples (s,a), automatically repeat each for num_samples times.
+        return a list of input batch size 
 
         Args:
-            state (torch.Tensor): The input state tensor.
-            action (torch.Tensor): The input action tensor.
+            state (torch.Tensor): torch.Size([B, state_dim])
+            action (torch.Tensor): torch.Size([B, action_dim])
             num_samples (int): Number of Monte Carlo samples.
 
         Returns:
-            mean_pred (torch.Tensor): The mean of the predictions.
-            var_pred (torch.Tensor): The variance of the predictions.
+            mean_pred (torch.Tensor): The mean list of the predictions.
+            var_pred (torch.Tensor): The variance list of the predictions.
         """
         self.model.train()  # Ensure Dropout is enabled
-
+        H = state.shape[0]
+        Ds = state.shape[-1]
+        Da = action.shape[-1]
         if self.device is not None:
             state = state.to(self.device)
             action = action.to(self.device)
-        state_batch = state.repeat(num_samples, 1)
-        action_batch = action.repeat(num_samples, 1)
-        preds = self.forward(state_batch, action_batch)  # torch.Size([100, 2])
+        state_batch = state.unsqueeze(1).repeat(1,num_samples,1).view(H*num_samples,Ds)  # torch.Size([H*num_samples, state_dim])
+        action_batch = action.unsqueeze(1).repeat(1,num_samples,1).view(H*num_samples,Da)  # torch.Size([H*num_samples, action_dim])
+        preds = self.forward(state_batch, action_batch).view(H, num_samples, Ds)  # torch.Size([H, num_samples, Ds])
 
         # Calculate mean and variance along the sampling dimension
-        mean_pred = preds.mean(dim=0).detach().cpu().numpy()
-        var_pred = preds.var(dim=0).detach().cpu().numpy()
+        mean_pred = preds.mean(dim=1).detach().cpu().numpy()
+        var_pred = preds.var(dim=1).detach().cpu().numpy()
+        
 
         return mean_pred, var_pred
 

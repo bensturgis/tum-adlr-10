@@ -58,15 +58,15 @@ class MassSpringDamperEnv(gym.Env):
         # Apply model when exists
         if self.model is not None:
             if isinstance(self.model, MCDropoutBNN):
-                s = torch.tensor(self.state, dtype=torch.float32).unsqueeze(0)
-                a = torch.tensor(action, dtype=torch.float32).unsqueeze(0)
+                s = torch.tensor(self.state, dtype=torch.float32).unsqueeze(0)  # torch.Size([1, 2])
+                a = torch.tensor(action, dtype=torch.float32).unsqueeze(0)  # torch.Size([1, 1])
                 next_state, pred_var = self.model.bayesian_pred(s, a)
-                self.state = next_state
+                self.state = next_state.squeeze()
                 
                 reward = -np.sum(np.square(self.state))
                 terminated = False
                 truncated = False
-                info = {"var": pred_var} # output variance of predictive distribution
+                info = {"var": pred_var.squeeze()} # output variance of predictive distribution
 
                 return self.state, reward, terminated, truncated, info
             
