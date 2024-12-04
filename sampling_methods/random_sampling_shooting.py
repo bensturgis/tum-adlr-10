@@ -112,10 +112,7 @@ class RandomSamplingShooting(SamplingMethod):
 
         for t in range(self.horizon):
             # Sample K random action sequences, each of length H
-            action_seqs = np.array([
-                [learned_env.action_space.sample() for _ in range(self.mpc_horizon)]
-                for _ in range(self.num_action_seq)
-            ])
+            action_seqs = np.random.uniform(low=learned_env.action_space.low, high=learned_env.action_space.high, size=(self.num_action_seq, self.mpc_horizon, 1))
 
             # Evaluate the performance of each action sequence
             performances = np.zeros(self.num_action_seq)
