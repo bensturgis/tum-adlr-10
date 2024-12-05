@@ -3,13 +3,14 @@ import numpy as np
 import torch
 from torch.utils.data import TensorDataset
 import typing
+from tqdm import tqdm
 
 from sampling_methods.sampling_method import SamplingMethod
 
 class RandomSamplingShooting(SamplingMethod):
     def __init__(
-            self, horizon: int, mpc_horizon: int, num_action_seq: int,
-            num_particles: int
+            self, horizon: int, mpc_horizon: int, num_action_seq: int, 
+            num_chosen_action_seq: int, num_particles: int
         ) -> None:
         """
         Initialize RandomSamplingShooting object.
@@ -25,6 +26,7 @@ class RandomSamplingShooting(SamplingMethod):
         super().__init__(horizon=horizon)
         self.mpc_horizon = mpc_horizon
         self.num_action_seq = num_action_seq
+        self.num_chosen_action_seq = num_chosen_action_seq
         self.num_particles = num_particles
     
     def differential_entropy(self, pred_var: np.ndarray) -> float:
@@ -108,37 +110,67 @@ class RandomSamplingShooting(SamplingMethod):
         next_states = []
 
         # Reset the environment to initial state
-        _, _ = true_env.reset()
+        true_env.reset()
 
-        for t in range(self.horizon):
-            # Sample K random action sequences, each of length H
-            action_seqs = np.random.uniform(low=learned_env.action_space.low, high=learned_env.action_space.high, size=(self.num_action_seq, self.mpc_horizon, 1))
-
+        if self.mpc_horizon == 0: # RS without MPC
+            action_seqs = np.random.uniform(low=learned_env.action_space.low, high=learned_env.action_space.high, size=(self.num_action_seq, self.horizon, 1))
             # Evaluate the performance of each action sequence
             performances = np.zeros(self.num_action_seq)
-            for k, action_seq in enumerate(action_seqs):
+            for k, action_seq in enumerate(tqdm(action_seqs, desc="Evaluating action sequences")):
                 performances[k] = self.action_seq_performance(learned_env, action_seq, self.num_particles)
-                if (k+1) % 1000 == 0:
-                    print(f"Evaluated performance of {k+1} out of {self.num_action_seq} randomly sampled action sequences.")
-
-            # Choose the best action sequence (highest performance)
-            best_action_seq = action_seqs[np.argmax(performances)]
-
-            # Append the current state to the list
-            states.append(true_env.unwrapped.state)
-
-            # Append the first action of the best performing action sequence to the list
-            actions.append(best_action_seq[0])
-
-            # Step the environment using the sampled action and append the next state
-            next_state, _, terminated, truncated, _ = true_env.step(best_action_seq[0])
-            next_states.append(next_state)
-
-            # Reset if the environment reaches a terminal or truncated state
-            if terminated or truncated:
+            chosen_action_seqs_indices = np.argsort(performances)[::-1][:self.num_chosen_action_seq]
+            print(f"Chosen {self.num_chosen_action_seq} sequences of {self.num_action_seq} randomly sampled action sequences.")
+            for n in range(self.num_chosen_action_seq):
+                action_seq = action_seqs[chosen_action_seqs_indices[n]]
                 true_env.reset()
+                for t in range(self.horizon):
+                    # Append the current state to the list
+                    states.append(true_env.unwrapped.state)
 
-            print(f"Collected {t+1} actions for action sequence of horizon {self.horizon}.")
+                    # Append the t-th action of the action sequence to the list
+                    actions.append(action_seq[t])
+
+                    # Step the environment using the sampled action and append the next state
+                    next_state, _, terminated, truncated, _ = true_env.step(action_seq[t])
+                    next_states.append(next_state)
+
+                    # Reset if the environment reaches a terminal or truncated state
+                    if terminated or truncated:
+                        true_env.reset()
+
+            print(f"Collected {self.num_chosen_action_seq*self.horizon} samples from real environment")  
+        
+        else: # RS + MPC
+
+            for t in range(self.horizon):
+                # Sample K random action sequences, each of length H
+                action_seqs = np.random.uniform(low=learned_env.action_space.low, high=learned_env.action_space.high, size=(self.num_action_seq, self.mpc_horizon, 1))
+
+                # Evaluate the performance of each action sequence
+                performances = np.zeros(self.num_action_seq)
+                for k, action_seq in enumerate(action_seqs):
+                    learned_env.reset(state=true_env.unwrapped.state)
+                    performances[k] = self.action_seq_performance(learned_env, action_seq, self.num_particles)
+                print(f"Evaluated performance of {self.num_action_seq} randomly sampled action sequences.")
+
+                # Choose the best action sequence (highest performance)
+                best_action_seq = action_seqs[np.argmax(performances)]
+
+                # Append the current state to the list
+                states.append(true_env.unwrapped.state)
+
+                # Append the first action of the best performing action sequence to the list
+                actions.append(best_action_seq[0])
+
+                # Step the environment using the sampled action and append the next state
+                next_state, _, terminated, truncated, _ = true_env.step(best_action_seq[0])
+                next_states.append(next_state)
+
+                # Reset if the environment reaches a terminal or truncated state
+                if terminated or truncated:
+                    true_env.reset()
+
+                print(f"Collected {t+1} actions for action sequence of horizon {self.horizon}.")
 
         # Convert the collected lists into tensors
         state_tensor = torch.tensor(np.array(states), dtype=torch.float32)

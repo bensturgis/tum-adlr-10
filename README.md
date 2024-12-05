@@ -14,3 +14,10 @@
     Should we check if the satisfy derivative relationship?
 - How much data did you generate?
     traj long 500 * 100 traj
+
+# 5. Dec
+- try to run whole active learning algorithm with RandomSampling method
+- first trial:
+    using K=2000
+    discard MPC, directly sample length of horizon
+    choose B best sequences instead of only 1
