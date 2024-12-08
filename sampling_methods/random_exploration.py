@@ -14,6 +14,7 @@ class RandomExploration(SamplingMethod):
             horizon (T) (int): The total planning horizon (T).
         """
         super().__init__(horizon=horizon)
+        self.name = "Random Exploration"
 
     def sample(self, true_env: gym.Env, learned_env: gym.Env = None) -> TensorDataset:
         """

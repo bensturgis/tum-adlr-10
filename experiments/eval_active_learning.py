@@ -46,7 +46,7 @@ dynamics_model = MCDropoutBNN(
 )
 learned_env = MassSpringDamperEnv(model=dynamics_model)
 
-# Initialize the sampling method
+# Initialize the sampling methods
 random_exploration = RandomExploration(horizon=HORIZON)
 random_sampling_shooting = RandomSamplingShooting(
     horizon=HORIZON,
@@ -54,12 +54,13 @@ random_sampling_shooting = RandomSamplingShooting(
     num_action_seq=NUM_ACTION_SEQ,
     num_particles=NUM_PARTICLES,
 )
+sampling_methods = [random_exploration, random_sampling_shooting]
 
 # Initialize the active learning evaluator
 active_learning_evaluator = ActiveLearningEvaluator(
     true_env=true_env,
     learned_env=learned_env,
-    sampling_method=random_sampling_shooting,
+    sampling_methods=sampling_methods,
     num_al_iterations=NUM_AL_ITERATIONS,
     num_epochs=NUM_EPOCHS,
     batch_size=BATCH_SIZE,

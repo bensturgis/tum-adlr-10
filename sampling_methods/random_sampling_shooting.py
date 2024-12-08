@@ -27,7 +27,8 @@ class RandomSamplingShooting(SamplingMethod):
         self.mpc_horizon = mpc_horizon
         self.num_action_seq = num_action_seq
         self.num_particles = num_particles
-    
+        self.name = "Random Sampling Shooting"
+
     def compute_performances(self, pred_vars: np.ndarray) -> np.ndarray:
         """
         Computes performance scores for a batch action sequences. The performance
