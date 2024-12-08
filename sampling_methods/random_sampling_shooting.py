@@ -2,7 +2,7 @@ import gymnasium as gym
 import numpy as np
 import torch
 from torch.utils.data import TensorDataset
-import typing
+from typing import Tuple
 from tqdm import tqdm
 
 from sampling_methods.sampling_method import SamplingMethod
@@ -10,7 +10,7 @@ from sampling_methods.sampling_method import SamplingMethod
 class RandomSamplingShooting(SamplingMethod):
     def __init__(
             self, horizon: int, mpc_horizon: int, num_action_seq: int, 
-            num_chosen_action_seq: int, num_particles: int
+            num_particles: int
         ) -> None:
         """
         Initialize RandomSamplingShooting object.
@@ -26,7 +26,6 @@ class RandomSamplingShooting(SamplingMethod):
         super().__init__(horizon=horizon)
         self.mpc_horizon = mpc_horizon
         self.num_action_seq = num_action_seq
-        self.num_chosen_action_seq = num_chosen_action_seq
         self.num_particles = num_particles
     
     def differential_entropy(self, pred_var: np.ndarray) -> float:
@@ -78,7 +77,7 @@ class RandomSamplingShooting(SamplingMethod):
         actions[:, :] = torch.from_numpy(action_seq).to(device)
         for k in range(H-1): # parallelize P trajectory collection
             states[:, k+1] = env.unwrapped.model(states[:, k], actions[:, k])
-        states_batch = states.view(num_particles*H, Ds)
+        states_batch = states.view(num_particles*H, Ds) # results in [s^1_1, ..., s^1_H, ..., s^P_1, ..., s^P_H]
         actions_batch = actions.view(num_particles*H, Da)
         _, var_list = env.unwrapped.model.bayesian_pred(states_batch, actions_batch)
         # data in var_list(np.ndarray): along one trajectory(H) and then particles(P)
@@ -89,7 +88,44 @@ class RandomSamplingShooting(SamplingMethod):
         R = np.mean(diff_entrop_list) # average on particle dimension
 
         return R
-                
+
+    def find_informative_action_seq(self, learned_env: gym.Env, num_action_seq: int, action_seq_length: int,
+                                    num_particles: int) -> np.ndarray:
+        """
+        Generate random action sequences from the specified environment, evaluate their performance and choose
+        the most informative action sequence.
+
+        Args:
+            learned_env: The environment from which to sample and evaluate actions.
+            num_action_seq (K) (int): The number of action sequences (K) to sample and evaluate.
+            action_seq_length (int): The number of steps in each action sequence. Corresponds to MPC horizon (H) if
+                                     we use RS + MPC and to horizon (T) if we use RS without MPC.
+            num_particles (P) (int): The number of particles for Monte Carlo sampling during
+                                     performance evaluation.
+
+        Returns:
+            np.ndarray: Array of length `action_seq_length` containing the most informative action sequence of the
+                        `num_action_seq` sampled action sequences.
+        """
+        # Sample K random action sequences, each of length `action_seq_length`
+        action_seqs = np.random.uniform(
+            low=learned_env.action_space.low,
+            high=learned_env.action_space.high,
+            size=(num_action_seq, action_seq_length, 1)
+        )
+
+        # Evaluate the performance of each action sequence
+        performances = np.zeros(num_action_seq)
+        for k, action_seq in enumerate(tqdm(action_seqs, desc="Evaluating Action Sequences")):
+            performances[k] = self.action_seq_performance(learned_env, action_seq, num_particles)
+
+        print(f"Evaluated performance of {self.num_action_seq} randomly sampled action sequences.")
+
+        # Choose the best action sequence (highest performance)
+        best_action_seq = action_seqs[np.argmax(performances)]
+
+        return best_action_seq
+
     def sample(self, true_env: gym.Env, learned_env: gym.Env) -> TensorDataset:
         """
         Implements Random Shooting Model Predictive Control (RS+MPC) as described in Algorithm 4
@@ -113,49 +149,37 @@ class RandomSamplingShooting(SamplingMethod):
         true_env.reset()
 
         if self.mpc_horizon == 0: # RS without MPC
-            action_seqs = np.random.uniform(low=learned_env.action_space.low, high=learned_env.action_space.high, size=(self.num_action_seq, self.horizon, 1))
-            # Evaluate the performance of each action sequence
-            performances = np.zeros(self.num_action_seq)
-            for k, action_seq in enumerate(tqdm(action_seqs, desc="Evaluating action sequences")):
-                performances[k] = self.action_seq_performance(learned_env, action_seq, self.num_particles)
-            chosen_action_seqs_indices = np.argsort(performances)[::-1][:self.num_chosen_action_seq]
-            print(f"Chosen {self.num_chosen_action_seq} sequences of {self.num_action_seq} randomly sampled action sequences.")
-            for n in range(self.num_chosen_action_seq):
-                action_seq = action_seqs[chosen_action_seqs_indices[n]]
-                true_env.reset()
-                for t in range(self.horizon):
-                    # Append the current state to the list
-                    states.append(true_env.unwrapped.state)
-
-                    # Append the t-th action of the action sequence to the list
-                    actions.append(action_seq[t])
-
-                    # Step the environment using the sampled action and append the next state
-                    next_state, _, terminated, truncated, _ = true_env.step(action_seq[t])
-                    next_states.append(next_state)
-
-                    # Reset if the environment reaches a terminal or truncated state
-                    if terminated or truncated:
-                        true_env.reset()
-
-            print(f"Collected {self.num_chosen_action_seq*self.horizon} samples from real environment")  
-        
-        else: # RS + MPC
-
+            best_action_seq = self.find_informative_action_seq(
+                                     learned_env=learned_env,
+                                     num_action_seq=self.num_action_seq,
+                                     action_seq_length=self.horizon,
+                                     num_particles=self.num_particles
+                                   )            
             for t in range(self.horizon):
-                # Sample K random action sequences, each of length H
-                action_seqs = np.random.uniform(low=learned_env.action_space.low, high=learned_env.action_space.high, size=(self.num_action_seq, self.mpc_horizon, 1))
+                # Append the current state to the list
+                states.append(true_env.unwrapped.state)
 
-                # Evaluate the performance of each action sequence
-                performances = np.zeros(self.num_action_seq)
-                for k, action_seq in enumerate(action_seqs):
-                    learned_env.reset(state=true_env.unwrapped.state)
-                    performances[k] = self.action_seq_performance(learned_env, action_seq, self.num_particles)
-                print(f"Evaluated performance of {self.num_action_seq} randomly sampled action sequences.")
+                # Append the t-th action of the best action sequence to the list
+                actions.append(best_action_seq[t])
 
-                # Choose the best action sequence (highest performance)
-                best_action_seq = action_seqs[np.argmax(performances)]
+                # Step the environment using the sampled action and append the next state
+                next_state, _, terminated, truncated, _ = true_env.step(best_action_seq[t])
+                next_states.append(next_state)
 
+                # Reset if the environment reaches a terminal or truncated state
+                if terminated or truncated:
+                    true_env.reset()
+
+            print(f"Collected {self.horizon} samples from real environment") 
+
+        else: # RS + MPC
+            for t in range(self.horizon):
+                best_action_seq = self.find_informative_action_seq(
+                                     learned_env=learned_env,
+                                     num_action_seq=self.num_action_seq,
+                                     action_seq_length=self.horizon,
+                                     num_particles=self.num_particles
+                                   )
                 # Append the current state to the list
                 states.append(true_env.unwrapped.state)
 
@@ -178,5 +202,3 @@ class RandomSamplingShooting(SamplingMethod):
         next_state_tensor = torch.tensor(np.array(next_states), dtype=torch.float32)
 
         return TensorDataset(state_tensor, action_tensor, next_state_tensor)
-
-    

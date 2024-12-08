@@ -22,9 +22,8 @@ DROP_PROB = 0.1           # Dropout probability for the bayesian neural network
 HORIZON = 50              # Trajectory time horizon (T = 50 in paper)
 
 # Hyperparameters for random sampling shooting
-MPC_HORIZON = 0 # Number of steps (H) in each sampled action sequence (H = 10 in paper) / set H=0 to discard MPC method
+MPC_HORIZON = 10 # Number of steps (H) in each sampled action sequence (H = 10 in paper) / Set H = 0 to discard MPC
 NUM_ACTION_SEQ = 2000 # Number of action sequences (K) sampled at each time step (K = 20000 in paper)
-NUM_CHOSEN_ACTION_SEQ = 1 # Number of chosen action sequences (B) sampled at each time step (K = 20000 in paper)
 NUM_PARTICLES = 100 # The number of particles for Monte Carlo sampling during performance evaluation
 
 # Hyperparameters for the active learning evaluation
@@ -53,7 +52,6 @@ random_sampling_shooting = RandomSamplingShooting(
     horizon=HORIZON,
     mpc_horizon=MPC_HORIZON,
     num_action_seq=NUM_ACTION_SEQ,
-    num_chosen_action_seq=NUM_CHOSEN_ACTION_SEQ,
     num_particles=NUM_PARTICLES,
 )
 
