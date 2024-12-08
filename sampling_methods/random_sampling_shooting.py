@@ -28,67 +28,90 @@ class RandomSamplingShooting(SamplingMethod):
         self.num_action_seq = num_action_seq
         self.num_particles = num_particles
     
-    def differential_entropy(self, pred_var: np.ndarray) -> float:
+    def compute_performances(self, pred_vars: np.ndarray) -> np.ndarray:
         """
-        Computes differential entropy for a multivariate Gaussian.
-
-        This method implements Equation 7 from the paper 
-        "Actively learning dynamical systems using Bayesian neural networks."
+        Computes performance scores for a batch action sequences. The performance
+        is derived from the differential entropy of the multivariate Guassians of each
+        bayesian prediction along the trajectory and averaged over a number of particles
+        for monte carlo integration. 
 
         Args:
-            pred_var (\sigma^2) (np.ndarray): An array of variances for each dimension of the
-                                              Bayesian prediction.
-                
+            pred_var (np.ndarray): Variances of bayesian prediction of shape
+                                   [batch_size, num_particles, action_seq_length, state_dim] where
+                                   `num_particles` is denoted as P and state_dim is denoted as d_s
+                                   in the paper. `action_seq_length` can either be the MPC horizon H
+                                   if we use RS+MPC or the entire horizon T if we use RS without MPC.
+
         Returns:
-            float: The computed differential entropy value \mathcal{H}[f(s_t, a_t)].
+            np.ndarray: Performance scores of shape [batch_size], one score for each action sequence
+                        in the batch.
         """
-        d_s = pred_var.shape[0]
-        const = d_s * np.log(np.sqrt(2 * np.pi * np.exp(1)))
-        diff_entrop = const + (1. / 2.) * np.sum(np.log(pred_var))
-        return diff_entrop
+        # Extract dimensions
+        _, _, action_seq_length, state_dim = pred_vars.shape
+
+        # Constant term for Gaussian differential entropy
+        const = action_seq_length * state_dim * np.log(np.sqrt(2 * np.pi * np.e))
+
+        # Differential entropy for each particle of each action sequence
+        diff_entrop = const + 0.5 * np.sum(np.log(pred_vars), axis=(2, 3)) # shape: [batch_size, num_particles]
+
+        # Monte carlo integration of performance score by averaging over the particles
+        performances = np.mean(diff_entrop, axis=1) # shape: [batch_size]
+
+        return performances
+
 
     def sample_informative_action_seq(self, learned_env: gym.Env, action_seq_length: int,
                                       batch_size: int = 20) -> np.ndarray:
         """
-        Generate random action sequences from the specified environment, evaluate their performance and choose
-        the most informative action sequence.
+        Generate random action sequences from the specified environment, evaluate their performance
+        and choose the most informative one based on differential entropy.
 
         Args:
-            learned_env: The environment from which to sample and evaluate actions.
-            action_seq_length (int): The number of steps in each action sequence. Corresponds to MPC horizon (H) if
-                                     we use RS + MPC and to horizon (T) if we use RS without MPC.
-
+            learned_env (gym.Env): The environment with a learned dynamics model.
+            action_seq_length (int): The length of each action sequence (MPC horizon H for random
+                                     sampling shooting combined with MPC and complete horizon T for
+                                     random sampling shooting without MPC).
+            batch_size (int): The number of action sequences to evaluate simultaneously in a single batch.
+                              Defaults to 20.
+            
         Returns:
-            np.ndarray: Array of length `action_seq_length` containing the most informative action sequence of the
-                        `num_action_seq` sampled action sequences.
+            np.ndarray: The most informative action sequence of shape `[action_seq_length, action_dim]`.
         """
+        # Determine the device used for computations related to learned model
         device = next(learned_env.unwrapped.model.parameters()).device
+        
+        # Extract state and action dimensions from the environment
         state_dim = learned_env.observation_space.shape[0]
         action_dim = learned_env.action_space.shape[0]
         
-        # Sample K random action sequences, each of length `action_seq_length`
+        # Sample `self.num_action_seq` random action sequences from the action space
         action_seqs = np.random.uniform(
             low=learned_env.action_space.low,
             high=learned_env.action_space.high,
             size=(self.num_action_seq, action_seq_length, action_dim)
-        )
+        ) # Shape: [num_action_seq, action_seq_length, action_dim]
 
-        # Store the computed performances for each sequence
+        # Store the performances for each action sequence
         performances = np.zeros(self.num_action_seq)
 
-        # Process in chunks of batch_size
+        # Evaluate action sequences in batches
         for start_idx in tqdm(range(0, self.num_action_seq, batch_size), desc="Evaluating action sequences"):
             end_idx = min(start_idx + batch_size, self.num_action_seq)
-            batch_action_seqs = action_seqs[start_idx:end_idx]  # shape: [batch_size, action_seq_length, action_dim]
             current_batch_size = end_idx - start_idx
 
-            # Allocate tensors for states and actions for this batch
+            # Extract the current batch of action sequences
+            batch_action_seqs = action_seqs[start_idx:end_idx]  # shape: [current_batch_size, action_seq_length, action_dim]
+
+            # Initialize the states tensor for this batch
             states = torch.zeros([current_batch_size, self.num_particles, action_seq_length, state_dim], device=device)
-            start_state = torch.from_numpy(learned_env.unwrapped.state).float().to(device)
-            start_state = start_state.unsqueeze(0).unsqueeze(0)  # [1, 1, Ds]
-            start_state = start_state.repeat(current_batch_size, self.num_particles, 1)  # [batch_size, P, Ds]
+            # Set the initial state for all particles
+            start_state = torch.from_numpy(learned_env.unwrapped.state).float().to(device) # [state_dim]
+            start_state = start_state.unsqueeze(0).unsqueeze(0)  # [1, 1, state_dim]
+            start_state = start_state.repeat(current_batch_size, self.num_particles, 1)  # [batch_size, num_particles, state_dim]
             states[:, :, 0] = start_state
 
+            # Replicate action sequences across particles
             actions = torch.from_numpy(batch_action_seqs).float().to(device)  # [batch_size, H, Da]
             actions = actions.unsqueeze(1).repeat(1, self.num_particles, 1, 1)  # [batch_size, P, H, Da]
 
@@ -100,22 +123,18 @@ class RandomSamplingShooting(SamplingMethod):
                 )
                 states[:, :, k + 1] = next_states.view(current_batch_size, self.num_particles, state_dim)
 
-            # Bayesian prediction over all steps in the batch
+            # Bayesian prediction for all (state, action) pairs in the batch
             states_batch = states.view(current_batch_size * self.num_particles * action_seq_length, state_dim)
             actions_batch = actions.view(current_batch_size * self.num_particles * action_seq_length, action_dim)
-            _, variance_values = learned_env.unwrapped.model.bayesian_pred(states_batch, actions_batch)
-            variance_values = variance_values.reshape(current_batch_size, self.num_particles, action_seq_length, state_dim)
+            _, pred_vars = learned_env.unwrapped.model.bayesian_pred(states_batch, actions_batch)
+            pred_vars = pred_vars.reshape(current_batch_size, self.num_particles, action_seq_length, state_dim)
 
-            const = action_seq_length * state_dim * np.log(np.sqrt(2 * np.pi * np.e))
-            diff_entrop_list = const + 0.5 * np.sum(np.log(variance_values), axis=(2, 3))  # [batch_size, num_particles]
-            batch_performances = np.mean(diff_entrop_list, axis=1)  # [batch_size]
-
-            # Store performances for this batch
-            performances[start_idx:end_idx] = batch_performances
+            # Compute and store performances for this batch based on differential entropy
+            performances[start_idx:end_idx] = self.compute_performances(pred_vars)
 
         print(f"Evaluated performance of {self.num_action_seq} randomly sampled action sequences.")
 
-        # Choose the best action sequence (highest performance)
+        # Choose action sequence with the highest performance score
         best_action_seq = action_seqs[np.argmax(performances)]
 
         return best_action_seq
@@ -127,8 +146,7 @@ class RandomSamplingShooting(SamplingMethod):
 
         Args:
             true_env (gym.Env): The true environment for the actual data collection.
-            learned_env (gym.Env): The learned environment using a dynamics model to find the most
-                                   informative action sequence.
+            learned_env (gym.Env): The environment with a learned dynamics model.
 
         Returns:
             TensorDataset: A PyTorch TensorDataset containing the collected
