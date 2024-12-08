@@ -34,7 +34,7 @@ class RandomExploration(SamplingMethod):
         next_states = []
         
         # Reset the environment to initial state
-        _, _ = true_env.reset()
+        true_env.reset()
         
         # Perform exploration for up to 'horizon' steps
         for _ in range(self.horizon):    

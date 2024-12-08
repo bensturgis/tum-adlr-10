@@ -5,7 +5,7 @@ from train import create_dataloader, train_model
 from sampling_methods.sampling_method import SamplingMethod
 from sampling_methods.random_exploration import RandomExploration
 from utils import combine_datasets
-from metrics.one_step_pred_accuracy import compute_one_step_pred_accuracy
+from metrics.one_step_pred_accuracy import OneStepPredictiveAccuracyEvaluator
 from typing import List
 
 class ActiveLearningEvaluator():
@@ -50,6 +50,12 @@ class ActiveLearningEvaluator():
         # Store mean and standard deviation of the accuracies for all sampling methods
         all_mean_accuracies = []
         all_std_accuracies = []
+
+        # Initialize one-step predictive accuracy evaluator and pre-sample 'num_samples'
+        # (state, action) pairs
+        one_step_pred_acc_eval = OneStepPredictiveAccuracyEvaluator(true_env=self.true_env,
+                                                                    learned_env=self.learned_env,
+                                                                    num_samples=1250)
         for sampling_method in self.sampling_methods:
             print(f"Starting active learning with the sampling method: '{sampling_method.name}'.")
 
@@ -85,11 +91,8 @@ class ActiveLearningEvaluator():
                     self.learned_env.model.eval()
                     
                     # Compute the one-step predictive accuracy of the learned model
-                    one_step_pred_accuracy = compute_one_step_pred_accuracy(
-                        true_env=self.true_env,
-                        learned_env=self.learned_env,
-                        num_samples=1250
-                    )
+                    one_step_pred_accuracy = one_step_pred_acc_eval.compute_one_step_pred_accuracy()
+                    
                     print("One step predictive accuracy: ", one_step_pred_accuracy)
                     
                     # Append the accuracy to the history for plotting
