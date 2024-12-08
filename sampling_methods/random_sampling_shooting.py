@@ -97,7 +97,8 @@ class RandomSamplingShooting(SamplingMethod):
         performances = np.zeros(self.num_action_seq)
 
         # Evaluate action sequences in batches
-        for start_idx in tqdm(range(0, self.num_action_seq, batch_size), desc="Evaluating action sequences"):
+        pbar = tqdm(total=self.num_action_seq, desc="Evaluating action sequences")
+        for start_idx in range(0, self.num_action_seq, batch_size):
             end_idx = min(start_idx + batch_size, self.num_action_seq)
             current_batch_size = end_idx - start_idx
 
@@ -133,6 +134,12 @@ class RandomSamplingShooting(SamplingMethod):
             # Compute and store performances for this batch based on differential entropy
             performances[start_idx:end_idx] = self.compute_performances(pred_vars)
 
+            # Update the progress bar
+            pbar.update(current_batch_size)
+        
+        # Close the progress bar
+        pbar.close()
+        
         print(f"Evaluated performance of {self.num_action_seq} randomly sampled action sequences.")
 
         # Choose action sequence with the highest performance score
