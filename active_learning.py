@@ -7,6 +7,8 @@ from sampling_methods.random_exploration import RandomExploration
 from utils import combine_datasets
 from metrics.one_step_pred_accuracy import OneStepPredictiveAccuracyEvaluator
 from typing import List
+import pandas as pd
+import os
 
 class ActiveLearningEvaluator():
     def __init__(
@@ -113,16 +115,18 @@ class ActiveLearningEvaluator():
             all_mean_accuracies.append(np.mean(sampling_method_accuracies, axis=0))
             all_std_accuracies.append(np.std(sampling_method_accuracies, axis=0))
 
-        # Plot the results
+        # Plot and save the results
+        save_path = "experiments/results/predictive_accuracy"
         self.plot_predictive_accuracies(all_mean_accuracies=all_mean_accuracies,
-                                        all_std_accuracies=all_std_accuracies)
+                                        all_std_accuracies=all_std_accuracies,
+                                        save_path=save_path)
 
     def plot_predictive_accuracies(
-            self, all_mean_accuracies: List[List[float]], all_std_accuracies: List[List[float]]
+            self, all_mean_accuracies: List[List[float]], all_std_accuracies: List[List[float]], save_path: str = None
     ) -> None:
         """
         Plots the mean and standard deviation of predictive accuracies for different sampling
-        methods over active learning iterations.
+        methods over active learning iterations and optionally saves the data and plot.
 
         Args:
             all_mean_accuracies (List[List[float]]): A list where each element is a list of mean 
@@ -131,6 +135,7 @@ class ActiveLearningEvaluator():
             all_std_accuracies (List[List[float]]): A list where each element is a list of standard 
                 deviations for a specific sampling method across active learning iterations.
                 Shape: [num_methods, num_al_iterations].
+            save_path (str, optional): Path to save the generated plot. If None, the plot will not be saved.
         """
         
         # Define map of colors to distinguish the sampling methods
@@ -162,4 +167,23 @@ class ActiveLearningEvaluator():
         plt.title("One-Step Predictive Accuracy over Active Learning Iterations")
         plt.legend()
         plt.grid(True)
+        if save_path:
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+            plot_path = save_path + "_plot.png"
+            plt.savefig(plot_path, bbox_inches='tight', dpi=300)
+            print(f"Plot saved to {plot_path}")
+
+            # save as CSV
+            mean_df = pd.DataFrame(all_mean_accuracies, index=[f"Method{i}" for i in range(len(self.sampling_methods))])
+            std_df = pd.DataFrame(all_std_accuracies, index=[f"Method{i}" for i in range(len(self.sampling_methods))])
+
+            mean_csv_path = save_path + "_mean.csv"
+            std_csv_path = save_path + "_std.csv"
+
+            mean_df.to_csv(mean_csv_path)
+            std_df.to_csv(std_csv_path)
+
+            print(f"Mean accuracies saved to {mean_csv_path}")
+            print(f"Standard deviations saved to {std_csv_path}")
+
         plt.show()
