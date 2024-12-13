@@ -6,9 +6,10 @@ from sampling_methods.sampling_method import SamplingMethod
 from sampling_methods.random_exploration import RandomExploration
 from utils import combine_datasets
 from metrics.one_step_pred_accuracy import OneStepPredictiveAccuracyEvaluator
-from typing import List
+from typing import Dict, List
 import pandas as pd
-import os
+from pathlib import Path
+import json
 
 class ActiveLearningEvaluator():
     def __init__(
@@ -39,7 +40,8 @@ class ActiveLearningEvaluator():
         self.learning_rate = learning_rate
         self.num_eval_repetitions = num_eval_repetitions
 
-    def active_learning(self) -> None:
+
+    def active_learning(self, show: bool = True, save: bool = True) -> None:
         """
         Implements Algorithm 1 from the paper: Actively learning dynamical systems 
         using Bayesian neural networks.
@@ -116,17 +118,44 @@ class ActiveLearningEvaluator():
             all_std_accuracies.append(np.std(sampling_method_accuracies, axis=0))
 
         # Plot and save the results
-        save_path = "experiments/results/predictive_accuracy"
-        self.plot_predictive_accuracies(all_mean_accuracies=all_mean_accuracies,
-                                        all_std_accuracies=all_std_accuracies,
-                                        save_path=save_path)
+        if show or save:
+            self.create_active_learning_plot(all_mean_accuracies=all_mean_accuracies,
+                                             all_std_accuracies=all_std_accuracies)
+        
+        if save:
+            self.save_active_learning_results(all_mean_accuracies=all_mean_accuracies,
+                                              all_std_accuracies=all_std_accuracies)
+        
+        if show:
+            plt.show()
 
-    def plot_predictive_accuracies(
-            self, all_mean_accuracies: List[List[float]], all_std_accuracies: List[List[float]], save_path: str = None
+
+    def params_to_dict(self) -> Dict[str, str]:
+        """
+        Converts hyperparameters into a dictionary.
+        """
+        parameter_dict = {
+            "true_env": self.true_env.params_to_dict(),
+            "learned_env": self.learned_env.params_to_dict(),
+            "sampling_methods": [
+                sampling_method.params_to_dict() for sampling_method in self.sampling_methods
+            ],
+            "num_eval_repetitions": self.num_eval_repetitions,
+            "num_al_iterations": self.num_al_iterations,
+            "num_epochs": self.num_epochs,
+            "batch_size": self.batch_size,
+            "learning_rate": self.learning_rate,
+            "metric": "One-step predicitive accuracy"
+        }
+        return parameter_dict
+
+
+    def save_active_learning_results(
+            self, all_mean_accuracies: List[List[float]], all_std_accuracies: List[List[float]]
     ) -> None:
         """
-        Plots the mean and standard deviation of predictive accuracies for different sampling
-        methods over active learning iterations and optionally saves the data and plot.
+        Saves the results of an active learning experiment, including plots, accuracy data,
+        and hyperparameters.
 
         Args:
             all_mean_accuracies (List[List[float]]): A list where each element is a list of mean 
@@ -135,9 +164,66 @@ class ActiveLearningEvaluator():
             all_std_accuracies (List[List[float]]): A list where each element is a list of standard 
                 deviations for a specific sampling method across active learning iterations.
                 Shape: [num_methods, num_al_iterations].
-            save_path (str, optional): Path to save the generated plot. If None, the plot will not be saved.
         """
-        
+        # Define the base directory for experiment results
+        base_dir = Path(__file__).parent / "experiments" / "active_learning_evaluations"
+
+        # Find the next available directory name for the experiment
+        counter = 1
+        save_dir = base_dir / f"experiment_{counter}"
+        while save_dir.exists():
+            counter += 1
+            save_dir = base_dir / f"experiment_{counter}"
+
+        save_dir.mkdir(parents=True, exist_ok=True)
+
+        # Save the accuracy plot
+        plot_path = save_dir / "plot.png"
+        plt.savefig(plot_path, bbox_inches="tight", dpi=300)
+        print(f"Plot saved to {plot_path}.")
+
+        # Save the mean and standard deviation accuracies
+        mean_pred_accuracies_df = pd.DataFrame(
+            all_mean_accuracies, 
+            index=[f"{sampling_method.name}" for sampling_method in self.sampling_methods]
+        )
+        std_pred_accuracies_df = pd.DataFrame(
+            all_std_accuracies, 
+            index=[f"{sampling_method.name}" for sampling_method in self.sampling_methods]
+        )
+
+        mean_pred_accuracies_csv_path = save_dir / "one_step_pred_accuracies_mean.csv"
+        std_pred_accuracies_csv_path = save_dir / "one_step_pred_accuracies_std.csv"
+
+        mean_pred_accuracies_df.to_csv(mean_pred_accuracies_csv_path)
+        std_pred_accuracies_df.to_csv(std_pred_accuracies_csv_path)
+
+        print(f"Mean accuracies saved to {mean_pred_accuracies_csv_path}.")
+        print(f"Standard deviations saved to {std_pred_accuracies_csv_path}.")
+
+        # Save hyperparameters
+        hyperparams = self.params_to_dict()
+        hyperparams_path = save_dir / "hyperparameters.json"
+        with open(hyperparams_path, "w") as f:
+            json.dump(hyperparams, f, indent=3)
+        print(f"Hyperparameters saved to {hyperparams_path}.")
+
+
+    def create_active_learning_plot(
+            self, all_mean_accuracies: List[List[float]], all_std_accuracies: List[List[float]]
+    ) -> None:
+        """
+        Plots the mean and standard deviation of predictive accuracies for different sampling
+        methods over active learning iterations.
+
+        Args:
+            all_mean_accuracies (List[List[float]]): A list where each element is a list of mean 
+                accuracies for a specific sampling method across active learning iterations.
+                Shape: [num_methods, num_al_iterations].
+            all_std_accuracies (List[List[float]]): A list where each element is a list of standard 
+                deviations for a specific sampling method across active learning iterations.
+                Shape: [num_methods, num_al_iterations].
+        """
         # Define map of colors to distinguish the sampling methods
         color_map = {
             "Random Exploration": "blue",
@@ -167,23 +253,3 @@ class ActiveLearningEvaluator():
         plt.title("One-Step Predictive Accuracy over Active Learning Iterations")
         plt.legend()
         plt.grid(True)
-        if save_path:
-            os.makedirs(os.path.dirname(save_path), exist_ok=True)
-            plot_path = save_path + "_plot.png"
-            plt.savefig(plot_path, bbox_inches='tight', dpi=300)
-            print(f"Plot saved to {plot_path}")
-
-            # save as CSV
-            mean_df = pd.DataFrame(all_mean_accuracies, index=[f"Method{i}" for i in range(len(self.sampling_methods))])
-            std_df = pd.DataFrame(all_std_accuracies, index=[f"Method{i}" for i in range(len(self.sampling_methods))])
-
-            mean_csv_path = save_path + "_mean.csv"
-            std_csv_path = save_path + "_std.csv"
-
-            mean_df.to_csv(mean_csv_path)
-            std_df.to_csv(std_csv_path)
-
-            print(f"Mean accuracies saved to {mean_csv_path}")
-            print(f"Standard deviations saved to {std_csv_path}")
-
-        plt.show()

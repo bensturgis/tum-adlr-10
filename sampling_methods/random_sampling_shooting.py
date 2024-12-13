@@ -219,3 +219,16 @@ class RandomSamplingShooting(SamplingMethod):
         next_state_tensor = torch.tensor(np.array(next_states), dtype=torch.float32)
 
         return TensorDataset(state_tensor, action_tensor, next_state_tensor)
+    
+    def params_to_dict(self) -> dict:
+        """
+        Converts hyperparameters into a dictionary.
+        """
+        parameter_dict = {
+            "name": self.name,
+            "horizon": self.horizon,
+            "mpc_horizon": self.mpc_horizon,
+            "num_action_seq": self.num_action_seq,
+            "num_particles": self.num_particles
+        }
+        return parameter_dict

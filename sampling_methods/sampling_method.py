@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 import gymnasium as gym
 from torch.utils.data import TensorDataset
+from typing import Dict
 
 class SamplingMethod(ABC):
     def __init__(self, horizon: int) -> None:
@@ -25,5 +26,12 @@ class SamplingMethod(ABC):
 
         Returns:
             TensorDataset: Collected (state, action, next state) pairs.
+        """
+        pass
+
+    @abstractmethod
+    def params_to_dict(self) -> Dict[str, str]:
+        """
+        Converts hyperparameters into a dictionary.
         """
         pass

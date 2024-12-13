@@ -2,6 +2,7 @@ import gymnasium as gym
 import numpy as np
 import torch
 from torch.utils.data import TensorDataset
+from typing import Dict
 
 from sampling_methods.sampling_method import SamplingMethod
 
@@ -64,3 +65,13 @@ class RandomExploration(SamplingMethod):
         next_state_tensor = torch.tensor(np.array(next_states), dtype=torch.float32)
         
         return TensorDataset(state_tensor, action_tensor, next_state_tensor)
+
+    def params_to_dict(self) -> Dict[str, str]:
+        """
+        Converts hyperparameters into a dictionary.
+        """
+        parameter_dict = {
+            "name": self.name,
+            "horizon": self.horizon
+        }
+        return parameter_dict

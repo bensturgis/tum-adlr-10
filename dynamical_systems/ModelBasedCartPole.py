@@ -1,12 +1,12 @@
 import numpy as np
 import torch
-import matplotlib.pyplot as plt
 from gymnasium.envs.classic_control import CartPoleEnv
 
 class ModelBasedCartPoleEnv(CartPoleEnv):
     def __init__(self, model):
         super().__init__()
         self.model = model
+        self.name = "Cart Pole System"
 
     def step(self, action):
         state_tensor = torch.tensor(self.state, dtype=torch.float32).unsqueeze(0)
@@ -33,3 +33,13 @@ class ModelBasedCartPoleEnv(CartPoleEnv):
         truncated = False
 
         return np.array(self.state, dtype=np.float32), reward, terminated, truncated, {}
+    
+    def params_to_dict(self) -> dict:
+        """
+        Converts hyperparameters into a dictionary.
+        """
+        parameter_dict = {
+            "name": self.name,
+            "model": None if self.model is None else self.model.params_to_dict()
+        }
+        return parameter_dict

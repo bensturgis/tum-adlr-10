@@ -5,13 +5,15 @@ import pygame
 import platform
 import ctypes
 import torch
-from typing import Tuple, Any
+from typing import Dict, Tuple, Any
 
 from models.feedforward_nn import FeedforwardNN
 from models.mc_dropout_bnn import MCDropoutBNN
 
 class MassSpringDamperEnv(gym.Env):
-    def __init__(self, m=0.1, k=1.0, d=0.1, delta_t=0.01, nlin=False, noise_var=0.1,model=None):
+    def __init__(
+            self, m=0.1, k=1.0, d=0.1, delta_t=0.01, nlin=False, noise_var=0.1, model=None
+    ):
         super(MassSpringDamperEnv, self).__init__()
 
         # Physical parameters
@@ -23,6 +25,7 @@ class MassSpringDamperEnv(gym.Env):
         self.d = d
         self.delta_t = delta_t  # Time step for discretization
         self.input_limit = 10.0
+        self.name = "Mass-Spring-Damper System"
 
         # State: [position, velocity]
         self.state = np.array([0.0, 0.0])
@@ -129,6 +132,22 @@ class MassSpringDamperEnv(gym.Env):
         pygame.draw.rect(self.screen, (0, 255, 0), mass_rect)
 
         pygame.display.flip()
+
+    def params_to_dict(self) -> Dict[str, str]:
+        """
+        Converts hyperparameters into a dictionary.
+        """
+        parameter_dict = {
+            "name": self.name,
+            "m": self.m,
+            "k": self.k,
+            "d": self.d,
+            "delta_t": self.delta_t,
+            "nonlinear": self.nonlinear,
+            "noise_var": self.noise_var,
+            "model": None if self.model is None else self.model.params_to_dict()
+        }
+        return parameter_dict
 
     def close(self):
         if self.screen is not None:
