@@ -4,3 +4,4 @@ experiments/test.ipynb
 *.pdf
 *.png
 experiments/active_learning_evaluations/
+/personal

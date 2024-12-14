@@ -195,7 +195,7 @@ class RandomSamplingShooting(SamplingMethod):
             for t in range(self.horizon):
                 best_action_seq = self.sample_informative_action_seq(
                                      learned_env=learned_env,
-                                     action_seq_length=self.horizon
+                                     action_seq_length=self.mpc_horizon
                                    )    
                 # Append the current state to the list
                 states.append(true_env.unwrapped.state)

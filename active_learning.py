@@ -61,7 +61,9 @@ class ActiveLearningEvaluator():
                                                                     learned_env=self.learned_env,
                                                                     num_samples=1250)
         for sampling_method in self.sampling_methods:
+            print("--------------------------------------------------------------------------------------")
             print(f"Starting active learning with the sampling method: '{sampling_method.name}'.")
+            print("--------------------------------------------------------------------------------------")
 
             # Store accuracy results of the current sampling method over all repetitions
             sampling_method_accuracies = []
