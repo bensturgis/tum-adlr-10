@@ -55,6 +55,10 @@ class ActiveLearningEvaluator():
         all_mean_accuracies = []
         all_std_accuracies = []
 
+        # Data structure to store trajectories
+        # trajectories[sampling_method_name][repetition][iteration] = np array of states
+        state_trajectories = {}
+        
         # Initialize one-step predictive accuracy evaluator and pre-sample 'num_samples'
         # (state, action) pairs
         one_step_pred_acc_eval = OneStepPredictiveAccuracyEvaluator(true_env=self.true_env,
@@ -67,6 +71,9 @@ class ActiveLearningEvaluator():
 
             # Store accuracy results of the current sampling method over all repetitions
             sampling_method_accuracies = []
+
+            # Initialize the dictionary for saving state state trajectories for the current sampling method
+            state_trajectories[sampling_method.name] = {}
             
             for repetition in range(self.num_eval_repetitions):
                 print(f"Evaluation Repetition {repetition + 1}/{self.num_eval_repetitions}")
@@ -77,6 +84,11 @@ class ActiveLearningEvaluator():
                 
                 # Initialize a list to store one-step predictive accuracy for each iteration
                 accuracy_history = []
+
+                # Initialize the dictionary for saving state state trajectories for the current repetition
+                state_trajectories[sampling_method.name][repetition] = {}
+                state_trajectory = total_dataset.tensors[0].numpy()
+                state_trajectories[sampling_method.name][repetition][0] = state_trajectory
 
                 # Perform active learning iterations
                 for iteration in range(self.num_al_iterations):
@@ -112,6 +124,11 @@ class ActiveLearningEvaluator():
                         # Merge the new dataset with the existing dataset
                         total_dataset = combine_datasets(total_dataset, new_dataset)
             
+                        # Store the newly sampled state trajectory
+                        state_trajectory = new_dataset.tensors[0].numpy()
+                        state_trajectories[sampling_method.name][repetition][iteration + 1] = state_trajectory
+
+
                 # Append this repetition's accuracy history to the main list
                 sampling_method_accuracies.append(accuracy_history)
         
@@ -126,7 +143,8 @@ class ActiveLearningEvaluator():
         
         if save:
             self.save_active_learning_results(all_mean_accuracies=all_mean_accuracies,
-                                              all_std_accuracies=all_std_accuracies)
+                                              all_std_accuracies=all_std_accuracies,
+                                              state_trajectories=state_trajectories)
         
         if show:
             plt.show()
@@ -153,7 +171,8 @@ class ActiveLearningEvaluator():
 
 
     def save_active_learning_results(
-            self, all_mean_accuracies: List[List[float]], all_std_accuracies: List[List[float]]
+            self, all_mean_accuracies: List[List[float]], all_std_accuracies: List[List[float]],
+            state_trajectories: Dict[str, Dict[int, Dict[int, np.ndarray]]]
     ) -> None:
         """
         Saves the results of an active learning experiment, including plots, accuracy data,
@@ -166,6 +185,9 @@ class ActiveLearningEvaluator():
             all_std_accuracies (List[List[float]]): A list where each element is a list of standard 
                 deviations for a specific sampling method across active learning iterations.
                 Shape: [num_methods, num_al_iterations].
+            state_trajectories (Dict[str, Dict[int, Dict[int, np.ndarray]]]): A nested dictionary storing 
+                state trajectories, where the keys are sampling method names, repetitions, 
+                and iterations.
         """
         # Define the base directory for experiment results
         base_dir = Path(__file__).parent / "experiments" / "active_learning_evaluations"
@@ -210,6 +232,24 @@ class ActiveLearningEvaluator():
             json.dump(hyperparams, f, indent=3)
         print(f"Hyperparameters saved to {hyperparams_path}.")
 
+        # Save state trajectories
+        trajectories_dir = save_dir / "state_trajectories"
+        trajectories_dir.mkdir(parents=True, exist_ok=True)
+
+        for sampling_method, repetitions in state_trajectories.items():
+            method_dir = trajectories_dir / sampling_method
+            method_dir.mkdir(parents=True, exist_ok=True)
+            
+            for repetition, iterations in repetitions.items():
+                repetition_dir = method_dir / f"repetition_{repetition}"
+                repetition_dir.mkdir(parents=True, exist_ok=True)
+                
+                for iteration, trajectory in iterations.items():
+                    trajectory_path = repetition_dir / f"iteration_{iteration}.npy"
+                    np.save(trajectory_path, trajectory)
+        
+        print(f"State trajectories saved to {trajectories_dir}.")
+                    
 
     def create_active_learning_plot(
             self, all_mean_accuracies: List[List[float]], all_std_accuracies: List[List[float]]
