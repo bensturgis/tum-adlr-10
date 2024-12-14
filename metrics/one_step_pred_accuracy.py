@@ -24,10 +24,12 @@ class OneStepPredictiveAccuracyEvaluator:
         self.learned_env = learned_env
         self.num_samples = num_samples
 
+        # TODO: Use random exploration to get reasonable data samples instead of
+        # hard coding lower and upper bound of state space
         # Pre-sample states within the observation space bounds
         self.sampled_states = np.random.uniform(
-            low=true_env.observation_space.low,
-            high=true_env.observation_space.high,
+            low=-0.5,
+            high=0.5,
             size=(num_samples, true_env.observation_space.shape[0])
         )
 
