@@ -1,23 +1,15 @@
 # tum-adlr-10
-# 11. Nov
-    train baseline network with random exploration
-# TODO：
-- Do you split your data in Test and Training? (If you use a fixed test set, you can compare the data later a bit better)
-    Use one trajectory for testing during training.
-    For later experiments I think it make sense to set a seed for random policy.
-- Did you also plot the test and training loss? -> It is not overfitting.
-    seems to be nice
-- Did you add noise to the training data? (If not, it is not necessary to do so yet)
-    look worse. I guess that's for real world data with noise.
-- Your input is force, last position, and last velocity, and your output is the current position, velocity? You simulate with discreet time steps?
-    Yes!
-    Should we check if the satisfy derivative relationship?
-- How much data did you generate?
-    traj long 500 * 100 traj
+## TODO
+- Create presentation
+- Create plots for presentation
+- Try to find reason that causes random exploration to perform better than random sampling shooting
+  - use random exploration instead of complete random sampling of data points to evaluate one-step predicitive accuracy
+- Set up server to run random sampling shooting + MPC
 
-# 5. Dec
-- try to run whole active learning algorithm with RandomSampling method
-- first trial:
-    using K=2000
-    discard MPC, directly sample length of horizon
-    choose B best sequences instead of only 1
+## Presentation Outline
+- Introduction to our topic/Introduction to the problem we are trying to solve
+- Presentation of active learning and random sampling shooting via flow chart
+- Experiments we have conducted so far including plots
+  - Learning curves including train and test error
+  - Active Learning evaluation
+  - Plot for exploration efficiency
