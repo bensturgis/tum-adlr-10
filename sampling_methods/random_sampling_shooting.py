@@ -92,7 +92,7 @@ class RandomSamplingShooting(SamplingMethod):
             high=learned_env.action_space.high,
             size=(self.num_action_seq, action_seq_length, action_dim)
         ) # Shape: [num_action_seq, action_seq_length, action_dim]
-
+        
         # Store the performances for each action sequence
         performances = np.zeros(self.num_action_seq)
 
@@ -144,7 +144,7 @@ class RandomSamplingShooting(SamplingMethod):
 
         # Choose action sequence with the highest performance score
         best_action_seq = action_seqs[np.argmax(performances)]
-
+        
         return best_action_seq
 
     def sample(self, true_env: gym.Env, learned_env: gym.Env) -> TensorDataset:
@@ -206,6 +206,7 @@ class RandomSamplingShooting(SamplingMethod):
                 # Step the environment using the sampled action and append the next state
                 next_state, _, terminated, truncated, _ = true_env.step(best_action_seq[0])
                 next_states.append(next_state)
+                learned_env.reset(state=true_env.unwrapped.state) # synchronize state to learn_env
 
                 # Reset if the environment reaches a terminal or truncated state
                 if terminated or truncated:
