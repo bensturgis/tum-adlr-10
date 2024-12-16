@@ -106,6 +106,68 @@ class MassSpringDamperEnv(gym.Env):
 
         return self.state, reward, terminated, truncated, {}
 
+    def compute_state_bounds(self, horizon: int) -> Dict[str, float]:
+        """
+        Computes the minimum and maximum position and velocity that can be reached
+        within the given horizon by always applying either the maximum or minimum action.
+
+        Args:
+            horizon (int): Number of steps to simulate forward.
+
+        Returns:
+            Dict[str, float]: A dictionary containing the min/max position and velocity keys:
+                            {
+                                "max_position": float,
+                                "min_position": float,
+                                "max_velocity": float,
+                                "min_velocity": float
+                            }
+        """
+        original_state = self.state.copy()
+
+        # Helper function to simulate and track min/max states using a constant action
+        def simulate(action_val):
+            self.reset(state=np.array([0.0, 0.0]))
+            min_pos = self.state[0]
+            max_pos = self.state[0]
+            min_vel = self.state[1]
+            max_vel = self.state[1]
+
+            action = np.array([action_val])
+            for _ in range(horizon):
+                next_state, _, _, _, _ = self.step(action)
+                # Update min/max bounds
+                min_pos = min(min_pos, next_state[0])
+                max_pos = max(max_pos, next_state[0])
+                min_vel = min(min_vel, next_state[1])
+                max_vel = max(max_vel, next_state[1])
+            
+            return min_pos, max_pos, min_vel, max_vel
+
+        # Simulate with minimum action
+        min_action = self.action_space.low[0]
+        min_pos_min_act, max_pos_min_act, min_vel_min_act, max_vel_min_act = simulate(min_action)
+
+        # Simulate with maximum action
+        max_action = self.action_space.high[0]
+        min_pos_max_act, max_pos_max_act, min_vel_max_act, max_vel_max_act = simulate(max_action)
+
+        # Combine results
+        overall_min_pos = min(min_pos_min_act, min_pos_max_act)
+        overall_max_pos = max(max_pos_min_act, max_pos_max_act)
+        overall_min_vel = min(min_vel_min_act, min_vel_max_act)
+        overall_max_vel = max(max_vel_min_act, max_vel_max_act)
+
+        # Restore the original state
+        self.state = original_state
+
+        return {
+            "max_position": overall_max_pos,
+            "min_position": overall_min_pos,
+            "max_velocity": overall_max_vel,
+            "min_velocity": overall_min_vel
+        }
+
     def render(self, mode="human"):
         if self.screen is None:
             pygame.init()

@@ -2,6 +2,7 @@ import gymnasium as gym
 import numpy as np
 import torch
 from torch.utils.data import TensorDataset, DataLoader
+from typing import Dict
 
 def create_dataloader(dataset: TensorDataset, batch_size: int) -> DataLoader:
     """
@@ -38,7 +39,7 @@ def combine_datasets(dataset1: TensorDataset, dataset2: TensorDataset) -> Tensor
     return TensorDataset(*combined_tensors)
 
 def create_test_dataset(
-    true_env: gym.Env, num_samples: int, state_low: float = -0.5, state_high: float = 0.5
+    true_env: gym.Env, num_samples: int, state_bounds: Dict[str, float]
 ) -> TensorDataset:
     """
     Samples states and actions from a true environment, computes their next states,
@@ -47,14 +48,17 @@ def create_test_dataset(
     Args:
         true_env (gym.Env): The true environment.
         num_samples (int): Number of samples to generate.
-        state_low (float): Lower bound for state sampling.
-        state_high (float): Upper bound for state sampling.
+        state_bounds (Dict[str, float]): Dictionary specifying the bounds for state sampling.
 
     Returns:
         TensorDataset: A PyTorch dataset containing (state, action, next_state) triples
                        for valid transitions.
     """
-    # Sample states uniformly in the specified range
+    # Use scaled bounds for sampling states
+    state_low = 0.5 * np.array([state_bounds["min_position"], state_bounds["min_velocity"]])
+    state_high = 0.5 * np.array([state_bounds["max_position"], state_bounds["max_velocity"]])
+
+    # Sample states uniformly within the computed range
     sampled_states = np.random.uniform(
         low=state_low,
         high=state_high,

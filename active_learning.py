@@ -72,8 +72,18 @@ class ActiveLearningEvaluator():
         # Get the state dimensionality
         state_dim = self.true_env.observation_space.shape[0]
 
+        # Extract the horizon from the sampling methods
+        horizon = self.sampling_methods[0].horizon
+        for sampling_method in self.sampling_methods:
+            assert horizon == sampling_method.horizon, (
+                "All sampling methods need to have the same horizon for comparison."
+            )
+        
+        # Extract the minimum and maximum state values the environment can reach for the given horizon
+        state_bounds = self.true_env.compute_state_bounds(horizon=horizon)
+
         # Create dataset and dataloader of (state, action, next_state) samples from the true environment
-        test_dataset = create_test_dataset(true_env=self.true_env, num_samples=1250)
+        test_dataset = create_test_dataset(true_env=self.true_env, num_samples=1250, state_bounds=state_bounds)
         test_dataloader = create_dataloader(dataset=test_dataset, batch_size=self.batch_size)
 
         # Initialize one-step predictive accuracy evaluator with the learned environment and the dataset

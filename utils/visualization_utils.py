@@ -3,9 +3,11 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 from models.mc_dropout_bnn import MCDropoutBNN
 import torch
+from typing import Dict
 
 def plot_state_space_trajectory(
-    experiment: int, sampling_method: str, num_al_iterations: int, repetition: int = 0,
+    experiment: int, sampling_method: str, num_al_iterations: int, state_bounds: Dict[str, float],
+    repetition: int = 0,
 ):
     """
     Plot the state space exploration for a specified experiment, sampling method,
@@ -16,6 +18,7 @@ def plot_state_space_trajectory(
         sampling_method (str): The sampling method (Allowed options: "Random Exploration" and
                                "Random Sampling Shooting").
         num_al_iterations (int): Number of active learning iterations to plot.
+        state_bounds (Dict[str, float]): Dictionary specifying the bounds of the reachable state space.
         repetition (int): The repetition number. Defaults to 0.
     """
     # Construct the path to the state trajectories folder
@@ -36,8 +39,8 @@ def plot_state_space_trajectory(
     )
     plt.title(f"{sampling_method} after {num_al_iterations} Active Learning Iterations")
     # TODO: Find smarter solution to label axis correctly
-    plt.xlabel("x")
-    plt.ylabel("v")
+    plt.xlabel("Position")
+    plt.ylabel("Velocity")
 
     # Plot the trajectories for each active learning iteration
     for iteration in range(num_al_iterations):
@@ -49,9 +52,8 @@ def plot_state_space_trajectory(
 
     plt.legend()
     plt.grid(True)
-    # TODO: Find smarter solution to find correct ranges
-    plt.xlim(-1, 1)
-    plt.ylim(-3, 3)
+    plt.xlim(0.5 * state_bounds["min_position"], 0.5 * state_bounds["max_position"])
+    plt.ylim(0.5 * state_bounds["min_velocity"], 0.5 * state_bounds["max_velocity"])
     plt.show()
 
 

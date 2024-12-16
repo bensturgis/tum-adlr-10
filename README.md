@@ -24,6 +24,7 @@
 ## Presentation Outline
 - Introduction to our topic/Introduction to the problem we are trying to solve (Yufei)
   - hard to explore, use as few as possible samples to learn physical dynamic
+  - Mention the difference to traditional reinforcement learning
 - Presentation of active learning and random sampling shooting via flow chart (Ben)
   - Active Learning: Algorithm 1
   - RS: Algorithm 4
@@ -38,6 +39,8 @@
   - Plot for exploration efficiency
     - visualization methods
 - What are the next milestones? Are there any changes to the research hypothesis or problem statement from the pro-posal? (Ben)
+  - Compare to other approaches from paper (soft-actor critic)
+  - (Increase the model complexity)
 
 - Save weights for le every activearning iteration to plot bayesian prediction variance (Yufei)
 - Create training plots for every ative learning iteration (Ben)
