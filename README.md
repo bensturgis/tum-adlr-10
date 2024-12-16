@@ -22,14 +22,14 @@
 - Set up server to run random sampling shooting + MPC
 
 ## Presentation Outline
-- Introduction to our topic/Introduction to the problem we are trying to solve
+- Introduction to our topic/Introduction to the problem we are trying to solve (Yufei)
   - hard to explore, use as few as possible samples to learn physical dynamic
-- Presentation of active learning and random sampling shooting via flow chart
+- Presentation of active learning and random sampling shooting via flow chart (Ben)
   - Active Learning: Algorithm 1
   - RS: Algorithm 4
-- Experiments we have conducted so far including plots
+- Experiments we have conducted so far including plots (Yufei)
   - Environment we use
-  - Model performances (FC, BNN)
+  - Model performances BNN
     - Learning curves including train and test error
   - Active Learning evaluation
     - RS implementation
@@ -37,6 +37,7 @@
     - explain the results
   - Plot for exploration efficiency
     - visualization methods
+- What are the next milestones? Are there any changes to the research hypothesis or problem statement from the pro-posal? (Ben)
 
-- Save weights for every active learning iteration to plot bayesian prediction variance
-- Create training plots for every ative learning iteration
+- Save weights for le every activearning iteration to plot bayesian prediction variance (Yufei)
+- Create training plots for every ative learning iteration (Ben)

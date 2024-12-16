@@ -1,15 +1,16 @@
 import gymnasium as gym
 import matplotlib.pyplot as plt
 import numpy as np
-from train import create_dataloader, train_model
+from train import train_model
 from sampling_methods.sampling_method import SamplingMethod
 from sampling_methods.random_exploration import RandomExploration
-from utils.utils import combine_datasets
+from utils.train_utils import combine_datasets, create_dataloader, create_test_dataset
 from metrics.one_step_pred_accuracy import OneStepPredictiveAccuracyEvaluator
 from typing import Dict, List
 import pandas as pd
 from pathlib import Path
 import json
+import torch
 
 class ActiveLearningEvaluator():
     def __init__(
@@ -55,18 +56,30 @@ class ActiveLearningEvaluator():
         all_mean_accuracies = []
         all_std_accuracies = []
 
-        # Data structure to store state trajectories
-        # trajectories[sampling_method_name][repetition] = np.array with all iterations' trajectories
+        # Dictionary to store collected state trajectories across methods and runs
+        # state_trajectories[sampling_method_name][repetition] -> np.ndarray of shape:
+        # (num_al_iterations, horizon, state_dim)
         state_trajectories = {}
-        
+
+        # Dictionary to store training and iteration-level results
+        # training_results[sampling_method_name][repetition][iteration] = {
+        #     "train_loss": [... per epoch ...],
+        #     "test_loss": [... per epoch ...],
+        #     "model_weights": state_dict()
+        # }
+        training_results = {}
+
         # Get the state dimensionality
         state_dim = self.true_env.observation_space.shape[0]
 
-        # Initialize one-step predictive accuracy evaluator and pre-sample 'num_samples'
-        # (state, action) pairs
-        one_step_pred_acc_eval = OneStepPredictiveAccuracyEvaluator(true_env=self.true_env,
-                                                                    learned_env=self.learned_env,
-                                                                    num_samples=1250)
+        # Create dataset and dataloader of (state, action, next_state) samples from the true environment
+        test_dataset = create_test_dataset(true_env=self.true_env, num_samples=1250)
+        test_dataloader = create_dataloader(dataset=test_dataset, batch_size=self.batch_size)
+
+        # Initialize one-step predictive accuracy evaluator with the learned environment and the dataset
+        one_step_pred_acc_eval = OneStepPredictiveAccuracyEvaluator(learned_env=self.learned_env,
+                                                                    dataset=test_dataset)
+
         for sampling_method in self.sampling_methods:
             print("--------------------------------------------------------------------------------------")
             print(f"Starting active learning with the sampling method: '{sampling_method.name}'.")
@@ -75,8 +88,9 @@ class ActiveLearningEvaluator():
             # Store accuracy results of the current sampling method over all repetitions
             sampling_method_accuracies = []
 
-            # Initialize the dictionary for storing state trajectories for the current sampling method
+            # Initialize structures for state trajectories and training results for this method
             state_trajectories[sampling_method.name] = {}
+            training_results[sampling_method.name] = {}
             
             for repetition in range(self.num_eval_repetitions):
                 print(f"Evaluation Repetition {repetition + 1}/{self.num_eval_repetitions}")
@@ -87,6 +101,9 @@ class ActiveLearningEvaluator():
                 
                 # Initialize a list to store one-step predictive accuracy for each iteration
                 accuracy_history = []
+
+                # Initialize training results for this repetition
+                training_results[sampling_method.name][repetition] = {}
 
                 # Initialize the numpy array for saving state trajectories for all iterations in the repetition
                 # Shape: (num_al_iterations, horizon, state_dim)
@@ -108,8 +125,18 @@ class ActiveLearningEvaluator():
                     train_dataloader = create_dataloader(total_dataset, self.batch_size)
                     
                     # Train the dynamics model using the training dataloader
-                    train_model(model=self.learned_env.model, train_dataloader=train_dataloader,
-                                num_epochs=self.num_epochs, learning_rate=self.learning_rate)           
+                    train_loss, test_loss, model_weights = train_model(model=self.learned_env.model,
+                                                                       train_dataloader=train_dataloader,
+                                                                       test_dataloader=test_dataloader,
+                                                                       num_epochs=self.num_epochs,
+                                                                       learning_rate=self.learning_rate)           
+                                    
+                    # Store the iteration-level results (losses and model weights)
+                    training_results[sampling_method.name][repetition][iteration] = {
+                        "train_loss": train_loss,
+                        "test_loss": test_loss,
+                        "model_weights": model_weights
+                    }
                     
                     # Evaluate the model in inference mode
                     self.learned_env.model.eval()
@@ -150,7 +177,8 @@ class ActiveLearningEvaluator():
         if save:
             self.save_active_learning_results(all_mean_accuracies=all_mean_accuracies,
                                               all_std_accuracies=all_std_accuracies,
-                                              state_trajectories=state_trajectories)
+                                              state_trajectories=state_trajectories,
+                                              training_results=training_results)
         
         if show:
             plt.show()
@@ -177,12 +205,18 @@ class ActiveLearningEvaluator():
 
 
     def save_active_learning_results(
-            self, all_mean_accuracies: List[List[float]], all_std_accuracies: List[List[float]],
-            state_trajectories: Dict[str, Dict[int, np.ndarray]]
+            self, all_mean_accuracies: List[List[float]],
+            all_std_accuracies: List[List[float]],
+            state_trajectories: Dict[str, Dict[int, np.ndarray]],
+            training_results: Dict[str, Dict[int, List[Dict]]]
     ) -> None:
         """
-        Saves the results of an active learning experiment, including plots, accuracy data,
-        and hyperparameters.
+        Saves the results of the active learning experiment, including:
+        - A summary plot of one-step predictive accuracies over iterations.
+        - Mean and standard deviation of predictive accuracies for each sampling method.
+        - Hyperparameters of the experiment.
+        - State trajectories collected during the experiment.
+        - Iteration-level training results (train/test losses, model weights, and a loss plot).
 
         Args:
             all_mean_accuracies (List[List[float]]): A list where each element is a list of mean 
@@ -194,6 +228,8 @@ class ActiveLearningEvaluator():
             state_trajectories (Dict[str, Dict[int, Dict[int, np.ndarray]]]): A nested dictionary storing 
                 state trajectories, where the keys are sampling method names, repetitions, 
                 and iterations.
+            training_results (Dict[str, Dict[int, List[Dict]]]):
+                A nested dictionary containing iteration-level results for each sampling method and repetition.
         """
         # Define the base directory for experiment results
         base_dir = Path(__file__).parent / "experiments" / "active_learning_evaluations"
@@ -252,6 +288,43 @@ class ActiveLearningEvaluator():
                 np.save(repetition_file, trajectories)
 
         print(f"State trajectories saved to {trajectories_dir}.")
+
+        # Save iteration-level training results
+        training_results_dir = save_dir / "training_results"
+        training_results_dir.mkdir(parents=True, exist_ok=True)
+
+        for sampling_method_name, repetition_dict in training_results.items():
+            method_dir = training_results_dir / sampling_method_name
+            method_dir.mkdir(parents=True, exist_ok=True)
+
+            for repetition, iterations in repetition_dict.items():
+                repetition_dir = method_dir / f"repetition_{repetition}"
+                repetition_dir.mkdir(parents=True, exist_ok=True)
+
+                for iteration, results_dict in iterations.items():
+                    # results_dict contains keys: "train_loss", "test_loss", and "model_weights"
+                    iteration_dir = repetition_dir / f"iteration_{iteration+1}"
+                    iteration_dir.mkdir(parents=True, exist_ok=True)
+
+                    # Save train and test losses as .npy
+                    np.save(iteration_dir / "train_loss.npy", np.array(results_dict["train_loss"]))
+                    np.save(iteration_dir / "test_loss.npy", np.array(results_dict["test_loss"]))
+
+                    # Save model weights
+                    torch.save(results_dict["model_weights"], iteration_dir / "model_weights.pt")
+
+                    # Plot and save the loss plot for this iteration
+                    plt.figure()
+                    plt.plot(results_dict["train_loss"], label="Train Loss")
+                    if len(results_dict["test_loss"]) > 0:
+                        plt.plot(results_dict["test_loss"], label="Test Loss")
+                    plt.xlabel("Epoch")
+                    plt.ylabel("Loss")
+                    plt.title(f"Train and Test Losses - Avtive Learning Iteration {iteration+1}")
+                    plt.legend()
+                    plt.grid(True)
+                    plt.savefig(iteration_dir / "loss_plot.png", bbox_inches="tight", dpi=300)
+                    plt.close()
               
 
     def create_active_learning_plot(
