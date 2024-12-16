@@ -37,3 +37,6 @@
     - explain the results
   - Plot for exploration efficiency
     - visualization methods
+
+- Save weights for every active learning iteration to plot bayesian prediction variance
+- Create training plots for every ative learning iteration
