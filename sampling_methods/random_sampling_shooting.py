@@ -63,7 +63,7 @@ class RandomSamplingShooting(SamplingMethod):
 
 
     def sample_informative_action_seq(self, learned_env: gym.Env, action_seq_length: int,
-                                      batch_size: int = 20) -> np.ndarray:
+                                      batch_size: int = 100) -> np.ndarray:
         """
         Generate random action sequences from the specified environment, evaluate their performance
         and choose the most informative one based on differential entropy.

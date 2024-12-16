@@ -27,8 +27,8 @@ NUM_ACTION_SEQ = 2000 # Number of action sequences (K) sampled at each time step
 NUM_PARTICLES = 100 # The number of particles for Monte Carlo sampling during performance evaluation
 
 # Hyperparameters for the active learning evaluation
-NUM_AL_ITERATIONS = 20    # Number of active learning iterations (20 in paper)
-NUM_EVAL_REPETITIONS = 10  # Number of evaluation runs for mean and variance (20 in paper)
+NUM_AL_ITERATIONS = 5    # Number of active learning iterations (20 in paper)
+NUM_EVAL_REPETITIONS = 1  # Number of evaluation runs for mean and variance (20 in paper)
 
 # Initialize the true environment
 true_env = MassSpringDamperEnv()

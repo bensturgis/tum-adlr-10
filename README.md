@@ -9,12 +9,31 @@
     and short horizon)
   - implement reacher environment from paper, visualize the state space exploration and compare results with
     those from the paper
+  - try RS without MPC
+    - it's better? At least got similar performance.
+    -> RS seems to favor exploring on velocity instead of position dimension (based on trajectory plot)
+  - try use the older version of RS+MPC (without parellelizing batch of trajectories)
+    - I checked the code and it should be correct
+  - try print out variance value and total differential entropy
+  - try reset input limitation
+    - based on the trajectory plot, the datapoints seems to be too dispersed, which means input are too large
+    - I tried set it to [-3,3], seems to be better, unlike RE, RS is trying to "reach out" to further regions
+  - visualize predictive var on the whole state space
 - Set up server to run random sampling shooting + MPC
 
 ## Presentation Outline
 - Introduction to our topic/Introduction to the problem we are trying to solve
+  - hard to explore, use as few as possible samples to learn physical dynamic
 - Presentation of active learning and random sampling shooting via flow chart
+  - Active Learning: Algorithm 1
+  - RS: Algorithm 4
 - Experiments we have conducted so far including plots
-  - Learning curves including train and test error
+  - Environment we use
+  - Model performances (FC, BNN)
+    - Learning curves including train and test error
   - Active Learning evaluation
+    - RS implementation
+    - explain the plot
+    - explain the results
   - Plot for exploration efficiency
+    - visualization methods

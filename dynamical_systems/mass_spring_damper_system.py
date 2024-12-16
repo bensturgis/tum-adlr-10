@@ -24,7 +24,7 @@ class MassSpringDamperEnv(gym.Env):
         self.k = k
         self.d = d
         self.delta_t = delta_t  # Time step for discretization
-        self.input_limit = 10.0
+        self.input_limit = 1.0
         self.name = "Mass-Spring-Damper System"
 
         # State: [position, velocity]
