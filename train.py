@@ -1,3 +1,4 @@
+import copy
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -128,4 +129,6 @@ def train_model(
         plt.legend()
         plt.show()
 
-    return epoch_losses[0], epoch_losses[1], model.state_dict()
+    # Create a deep copy of the model's state dict
+    model_weights = copy.deepcopy(model.state_dict())
+    return epoch_losses[0], epoch_losses[1], model_weights
