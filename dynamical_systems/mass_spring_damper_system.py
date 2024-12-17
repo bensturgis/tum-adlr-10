@@ -165,7 +165,9 @@ class MassSpringDamperEnv(gym.Env):
             "max_position": overall_max_pos,
             "min_position": overall_min_pos,
             "max_velocity": overall_max_vel,
-            "min_velocity": overall_min_vel
+            "min_velocity": overall_min_vel,
+            "max_action": max_action,
+            "min_action": min_action,
         }
 
     def render(self, mode="human"):

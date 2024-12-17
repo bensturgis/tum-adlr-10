@@ -97,7 +97,7 @@ class RandomSamplingShooting(SamplingMethod):
         performances = np.zeros(self.num_action_seq)
 
         # Evaluate action sequences in batches
-        pbar = tqdm(total=self.num_action_seq, desc="Evaluating action sequences")
+        # pbar = tqdm(total=self.num_action_seq, desc="Evaluating action sequences")
         for start_idx in range(0, self.num_action_seq, batch_size):
             end_idx = min(start_idx + batch_size, self.num_action_seq)
             current_batch_size = end_idx - start_idx
@@ -135,12 +135,12 @@ class RandomSamplingShooting(SamplingMethod):
             performances[start_idx:end_idx] = self.compute_performances(pred_vars)
 
             # Update the progress bar
-            pbar.update(current_batch_size)
+            # pbar.update(current_batch_size)
         
         # Close the progress bar
-        pbar.close()
+        # pbar.close()
         
-        print(f"Evaluated performance of {self.num_action_seq} randomly sampled action sequences.")
+        # print(f"Evaluated performance of {self.num_action_seq} randomly sampled action sequences.")
 
         # Choose action sequence with the highest performance score
         best_action_seq = action_seqs[np.argmax(performances)]
@@ -192,6 +192,7 @@ class RandomSamplingShooting(SamplingMethod):
             print(f"Collected {self.horizon} samples from real environment") 
 
         else: # RS + MPC
+            pbar = tqdm(total=self.horizon, desc="Collecting action sequence")
             for t in range(self.horizon):
                 best_action_seq = self.sample_informative_action_seq(
                                      learned_env=learned_env,
@@ -212,7 +213,13 @@ class RandomSamplingShooting(SamplingMethod):
                 if terminated or truncated:
                     true_env.reset()
 
-                print(f"Collected {t+1} actions for action sequence of horizon {self.horizon}.")
+                # Update the progress bar
+                pbar.update(1)
+                # print(f"Collected {t+1} actions for action sequence of horizon {self.horizon}.")
+
+            # Close the progress bar
+            pbar.close()
+            print(f"Collected {self.horizon} samples from real environment")
 
         # Convert the collected lists into tensors
         state_tensor = torch.tensor(np.array(states), dtype=torch.float32)

@@ -92,7 +92,7 @@ class MCDropoutBNN(nn.Module):
                 layer.reset_parameters()
             
     def load_state_dict(self, params):
-        params = {k: v.to(self.device) for k, v in params.items()}
+        params = {k.replace('model.', ''): v.to(self.device) for k, v in params.items()}
         self.model.load_state_dict(params)
 
     def params_to_dict(self) -> Dict[str, str]:

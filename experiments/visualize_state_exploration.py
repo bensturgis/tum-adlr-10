@@ -10,19 +10,20 @@ env = MassSpringDamperEnv(noise_var=0.0)
 HORIZON = 50
 
 state_bounds = env.compute_state_bounds(horizon=HORIZON)
+exp_idx = 2
 
-# plot_state_space_trajectory(
-#     sampling_method="Random Sampling Shooting",
-#     experiment=1,
-#     repetition=2,
-#     num_al_iterations=15,
-#     state_bounds=state_bounds
-# )
+plot_state_space_trajectory(
+    sampling_method="Random Sampling Shooting",
+    experiment=exp_idx,
+    repetition=0,
+    num_al_iterations=15,
+    state_bounds=state_bounds
+)
 
 plot_state_space_trajectory(
     sampling_method="Random Exploration",
-    experiment=2,
-    repetition=2,
+    experiment=exp_idx,
+    repetition=0,
     num_al_iterations=15,
     state_bounds=state_bounds
 )
