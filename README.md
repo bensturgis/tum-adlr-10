@@ -29,7 +29,7 @@
   - Active Learning: Algorithm 1
   - RS: Algorithm 4
 - Experiments we have conducted so far including plots (Yufei)
-  - Environment we use
+  - Environment we use (mass-spring-damper system)
   - Model performances BNN
     - Learning curves including train and test error
   - Active Learning evaluation
@@ -38,9 +38,10 @@
     - explain the results
   - Plot for exploration efficiency
     - visualization methods
+      - Save weights for le every activearning iteration to plot bayesian prediction variance (Yufei)
+      - Create training plots for every ative learning iteration (Ben)
 - What are the next milestones? Are there any changes to the research hypothesis or problem statement from the pro-posal? (Ben)
   - Compare to other approaches from paper (soft-actor critic)
   - (Increase the model complexity)
-
-- Save weights for le every activearning iteration to plot bayesian prediction variance (Yufei)
-- Create training plots for every ative learning iteration (Ben)
+  - instead of scaling complexity, we might want to delve deeper into BNN and study if it is reasonable to use MC-Dropout for this task
+    and we'll try other active learning method

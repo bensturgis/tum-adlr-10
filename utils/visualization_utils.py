@@ -101,8 +101,8 @@ def plot_state_space_pred_var(
     DROP_PROB = 0.1           # Dropout probability for the bayesian neural network
     # Initialize trained dynamics model and load saved weights
     bnn_model = MCDropoutBNN(STATE_DIM, ACTION_DIM, hidden_size=HIDDEN_SIZE, drop_prob=DROP_PROB)
-    bnn_model.reset_weights()
-    # bnn_model.load_state_dict(torch.load(model_weights_file))
+    # bnn_model.reset_weights()
+    bnn_model.load_state_dict(torch.load(model_weights_file))
 
     # calculate predictive variance for each point
     states_batch = torch.tensor(np.column_stack((X_flat, V_flat)), dtype=torch.float32)  # [batch_size, state_dim]

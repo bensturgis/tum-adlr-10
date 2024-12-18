@@ -12,7 +12,7 @@ from models.mc_dropout_bnn import MCDropoutBNN
 
 class MassSpringDamperEnv(gym.Env):
     def __init__(
-            self, m=0.1, k=1.0, d=0.1, delta_t=0.01, nlin=False, noise_var=0.1, model=None
+            self, m=0.1, k=1.0, d=0.1, delta_t=0.01, nlin=False, noise_var=0.0, model=None
     ):
         super(MassSpringDamperEnv, self).__init__()
 
