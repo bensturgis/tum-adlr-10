@@ -1,11 +1,12 @@
 import gymnasium as gym
 import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
 import numpy as np
 from train import train_model
+from metrics.evaluation_metric import EvaluationMetric
 from sampling_methods.sampling_method import SamplingMethod
 from sampling_methods.random_exploration import RandomExploration
 from utils.train_utils import combine_datasets, create_dataloader, create_test_dataset
-from metrics.one_step_pred_accuracy import OneStepPredictiveAccuracyEvaluator
 from typing import Dict, List
 import pandas as pd
 from pathlib import Path
@@ -15,7 +16,7 @@ import torch
 class ActiveLearningEvaluator():
     def __init__(
             self, true_env: gym.Env, learned_env: gym.Env, sampling_methods: List[SamplingMethod],
-            num_al_iterations: int, num_epochs: int, batch_size: int,
+            evaluation_metrics: List[EvaluationMetric], num_al_iterations: int, num_epochs: int, batch_size: int,
             learning_rate: float, num_eval_repetitions: int = 20
         ) -> None:
         """
@@ -26,6 +27,7 @@ class ActiveLearningEvaluator():
             learned_env (gym.Env): The learned environment using a dynamics model.
             sampling_methods (List[SamplingMethod]): List of methods to collect (state, action, next state)
                                                      pairs.
+            evaluation_metrics (List[EvluationMetric]): List of evaluation metrics.
             num_al_iterations (N_{AL}) (int): Number of active learning iterations.
             num_epochs (int): Number of epochs for training the dynamics model.
             batch_size (int): Batch size for the training dataloader.
@@ -35,6 +37,7 @@ class ActiveLearningEvaluator():
         self.true_env = true_env
         self.learned_env = learned_env
         self.sampling_methods = sampling_methods
+        self.evaluation_metrics = evaluation_metrics
         self.num_al_iterations = num_al_iterations
         self.num_epochs = num_epochs
         self.batch_size = batch_size
@@ -47,14 +50,21 @@ class ActiveLearningEvaluator():
         Implements Algorithm 1 from the paper: Actively learning dynamical systems 
         using Bayesian neural networks.
         
-        - Collects initial data using random exploration.
+        - Collects initial data.
         - Iteratively trains the dynamics model and evaluates its accuracy.
         - Updates the dataset with new trajectories after each iteration.
-        - Plots the one-step predictive accuracy over iterations.
+        - Plots predictive accuracy over iterations.
         """
-        # Store mean and standard deviation of the accuracies for all sampling methods
-        all_mean_accuracies = []
-        all_std_accuracies = []
+        # Dictionary to store the accuracy results for each sampling method and metric across all repetitions.
+        # all_accuracies[sampling_method_name][metric_name] -> np.ndarray of shape:
+        # (num_eval_repetitions, num_al_iterations)
+        all_accuracies = {}
+        for sampling_method in self.sampling_methods:
+            all_accuracies[sampling_method.name] = {}
+            for metric in self.evaluation_metrics:
+                all_accuracies[sampling_method.name][metric.name] = np.zeros(
+                    (self.num_eval_repetitions, self.num_al_iterations)
+                )
 
         # Dictionary to store collected state trajectories across methods and runs
         # state_trajectories[sampling_method_name][repetition] -> np.ndarray of shape:
@@ -86,17 +96,10 @@ class ActiveLearningEvaluator():
         test_dataset = create_test_dataset(true_env=self.true_env, num_samples=1250, state_bounds=state_bounds)
         test_dataloader = create_dataloader(dataset=test_dataset, batch_size=self.batch_size)
 
-        # Initialize one-step predictive accuracy evaluator with the learned environment and the dataset
-        one_step_pred_acc_eval = OneStepPredictiveAccuracyEvaluator(learned_env=self.learned_env,
-                                                                    dataset=test_dataset)
-
         for sampling_method in self.sampling_methods:
             print("--------------------------------------------------------------------------------------")
             print(f"Starting active learning with the sampling method: '{sampling_method.name}'.")
             print("--------------------------------------------------------------------------------------")
-
-            # Store accuracy results of the current sampling method over all repetitions
-            sampling_method_accuracies = []
 
             # Initialize structures for state trajectories and training results for this method
             state_trajectories[sampling_method.name] = {}
@@ -108,9 +111,6 @@ class ActiveLearningEvaluator():
                 # Collect initial dataset using random exploration
                 random_exploration = RandomExploration(sampling_method.horizon)
                 total_dataset = random_exploration.sample(self.true_env)
-                
-                # Initialize a list to store one-step predictive accuracy for each iteration
-                accuracy_history = []
 
                 # Initialize training results for this repetition
                 training_results[sampling_method.name][repetition] = {}
@@ -151,13 +151,13 @@ class ActiveLearningEvaluator():
                     # Evaluate the model in inference mode
                     self.learned_env.model.eval()
                     
-                    # Compute the one-step predictive accuracy of the learned model
-                    one_step_pred_accuracy = one_step_pred_acc_eval.compute_one_step_pred_accuracy()
+                    # Evaluate the learned model 
+                    for metric in self.evaluation_metrics:
+                        accuracy = metric.evaluate()
+                        print(f"{metric.name}: {accuracy}")
                     
-                    print("One step predictive accuracy: ", one_step_pred_accuracy)
-                    
-                    # Append the accuracy to the history for plotting
-                    accuracy_history.append(one_step_pred_accuracy)
+                        # Store the accuracy for this repetition and iteration
+                        all_accuracies[sampling_method.name][metric.name][repetition][iteration] = accuracy
                     
                     # Collect new data only if further training iterations remain
                     if iteration < self.num_al_iterations - 1:
@@ -171,22 +171,30 @@ class ActiveLearningEvaluator():
                         state_trajectory = new_dataset.tensors[0].numpy()  # shape: (horizon, state_dim)
                         state_trajectories[sampling_method.name][repetition][iteration + 1, :, :] = state_trajectory
 
+        mean_accuracies = {}
+        std_accuracies = {}
+        for sampling_method in self.sampling_methods:
+            mean_accuracies[sampling_method.name] = {}
+            std_accuracies[sampling_method.name] = {}
+            for metric in self.evaluation_metrics:                
+                # Compute the mean (and std) across the repetition axis = 0
+                mean_accuracies[sampling_method.name][metric.name] = list(np.mean(
+                    all_accuracies[sampling_method.name][metric.name], axis=0
+                ))
 
-                # Append this repetition's accuracy history to the main list
-                sampling_method_accuracies.append(accuracy_history)
-        
-            sampling_method_accuracies = np.array(sampling_method_accuracies)
-            all_mean_accuracies.append(np.mean(sampling_method_accuracies, axis=0))
-            all_std_accuracies.append(np.std(sampling_method_accuracies, axis=0))
+                std_accuracies[sampling_method.name][metric.name] = list(np.std(
+                    all_accuracies[sampling_method.name][metric.name], axis=0
+                ))
 
         # Plot and save the results
         if show or save:
-            self.create_active_learning_plot(all_mean_accuracies=all_mean_accuracies,
-                                             all_std_accuracies=all_std_accuracies)
+            figures = self.create_active_learning_plot(mean_accuracies=mean_accuracies,
+                                                       std_accuracies=std_accuracies)
         
         if save:
-            self.save_active_learning_results(all_mean_accuracies=all_mean_accuracies,
-                                              all_std_accuracies=all_std_accuracies,
+            self.save_active_learning_results(figures=figures,
+                                              mean_accuracies=mean_accuracies,
+                                              std_accuracies=std_accuracies,
                                               state_trajectories=state_trajectories,
                                               training_results=training_results)
         
@@ -209,32 +217,37 @@ class ActiveLearningEvaluator():
             "num_epochs": self.num_epochs,
             "batch_size": self.batch_size,
             "learning_rate": self.learning_rate,
-            "metric": "One-step predicitive accuracy"
+            "metrics": [
+                metric.params_to_dict() for metric in self.evaluation_metrics
+            ],
         }
         return parameter_dict
 
 
     def save_active_learning_results(
-            self, all_mean_accuracies: List[List[float]],
-            all_std_accuracies: List[List[float]],
+            self, figures: Dict[str, Figure],
+            mean_accuracies: Dict[str, Dict[str, List[float]]],
+            std_accuracies: Dict[str, Dict[str, List[float]]],
             state_trajectories: Dict[str, Dict[int, np.ndarray]],
             training_results: Dict[str, Dict[int, List[Dict]]]
     ) -> None:
         """
         Saves the results of the active learning experiment, including:
-        - A summary plot of one-step predictive accuracies over iterations.
+        - A summary plot of predictive accuracies over iterations for each metric.
         - Mean and standard deviation of predictive accuracies for each sampling method.
         - Hyperparameters of the experiment.
         - State trajectories collected during the experiment.
         - Iteration-level training results (train/test losses, model weights, and a loss plot).
 
         Args:
-            all_mean_accuracies (List[List[float]]): A list where each element is a list of mean 
-                accuracies for a specific sampling method across active learning iterations.
-                Shape: [num_methods, num_al_iterations].
-            all_std_accuracies (List[List[float]]): A list where each element is a list of standard 
-                deviations for a specific sampling method across active learning iterations.
-                Shape: [num_methods, num_al_iterations].
+            figures (Dict[str, Figure]): A dictionary where each key is a metric name and each
+                value is a Matplotlib figure object. These figures will be saved as PNG files.
+            mean_accuracies (Dict[str, Dict[str, List]]): A nested dictionary where
+                mean_accuracies[sampling_method][metric] is a list of length
+                `num_al_iterations` with mean accuracies per iteration across repetitions.
+            std_accuracies (Dict[str, Dict[str, List]]): A nested dictionary where
+                std_accuracies[sampling_method][metric] is a list of length 
+                `num_al_iterations` with standard deviations per iteration across repetitions.
             state_trajectories (Dict[str, Dict[int, Dict[int, np.ndarray]]]): A nested dictionary storing 
                 state trajectories, where the keys are sampling method names, repetitions, 
                 and iterations.
@@ -253,29 +266,22 @@ class ActiveLearningEvaluator():
 
         save_dir.mkdir(parents=True, exist_ok=True)
 
-        # Save the accuracy plot
-        plot_path = save_dir / "plot.png"
-        plt.savefig(plot_path, bbox_inches="tight", dpi=300)
-        print(f"Plot saved to {plot_path}.")
+        # Save the accuracy plots
+        for metric in self.evaluation_metrics:
+            plot_path = save_dir / f"{metric.name.lower().replace(' ', '_')}_plot.png"
+            figures[metric.name].savefig(plot_path, bbox_inches="tight", dpi=300)
+            print(f"{metric.name} plot saved to {plot_path}.")
 
-        # Save the mean and standard deviation accuracies
-        mean_pred_accuracies_df = pd.DataFrame(
-            all_mean_accuracies, 
-            index=[f"{sampling_method.name}" for sampling_method in self.sampling_methods]
-        )
-        std_pred_accuracies_df = pd.DataFrame(
-            all_std_accuracies, 
-            index=[f"{sampling_method.name}" for sampling_method in self.sampling_methods]
-        )
-
-        mean_pred_accuracies_csv_path = save_dir / "one_step_pred_accuracies_mean.csv"
-        std_pred_accuracies_csv_path = save_dir / "one_step_pred_accuracies_std.csv"
-
-        mean_pred_accuracies_df.to_csv(mean_pred_accuracies_csv_path)
-        std_pred_accuracies_df.to_csv(std_pred_accuracies_csv_path)
-
-        print(f"Mean accuracies saved to {mean_pred_accuracies_csv_path}.")
-        print(f"Standard deviations saved to {std_pred_accuracies_csv_path}.")
+        # Save the mean and standard deviation of the predictive accuracies
+        mean_pred_accuracies_path = save_dir / "pred_accuracies_mean.json"
+        with open(mean_pred_accuracies_path, "w") as f:
+            json.dump(mean_accuracies, f, indent=3)
+        print(f"Mean accuracies saved to {mean_pred_accuracies_path}.")
+        
+        std_pred_accuracies_path = save_dir / "pred_accuracies_std.json"
+        with open(std_pred_accuracies_path, "w") as f:
+            json.dump(std_accuracies, f, indent=3)        
+        print(f"Standard deviations saved to {std_pred_accuracies_path}.")
 
         # Save hyperparameters
         hyperparams = self.params_to_dict()
@@ -330,7 +336,7 @@ class ActiveLearningEvaluator():
                         plt.plot(results_dict["test_loss"], label="Test Loss")
                     plt.xlabel("Epoch")
                     plt.ylabel("Loss")
-                    plt.title(f"Train and Test Losses - Avtive Learning Iteration {iteration+1}")
+                    plt.title(f"Train and Test Losses - Active Learning Iteration {iteration+1}")
                     plt.legend()
                     plt.grid(True)
                     plt.savefig(iteration_dir / "loss_plot.png", bbox_inches="tight", dpi=300)
@@ -338,19 +344,20 @@ class ActiveLearningEvaluator():
               
 
     def create_active_learning_plot(
-            self, all_mean_accuracies: List[List[float]], all_std_accuracies: List[List[float]]
+        self, mean_accuracies: Dict[str, Dict[str, List[float]]],
+        std_accuracies: Dict[str, Dict[str, List[float]]]
     ) -> None:
         """
         Plots the mean and standard deviation of predictive accuracies for different sampling
         methods over active learning iterations.
 
         Args:
-            all_mean_accuracies (List[List[float]]): A list where each element is a list of mean 
-                accuracies for a specific sampling method across active learning iterations.
-                Shape: [num_methods, num_al_iterations].
-            all_std_accuracies (List[List[float]]): A list where each element is a list of standard 
-                deviations for a specific sampling method across active learning iterations.
-                Shape: [num_methods, num_al_iterations].
+            mean_accuracies (Dict[str, Dict[str, List]]): A nested dictionary where
+                mean_accuracies[sampling_method][metric] is a list of length
+                `num_al_iterations` with mean accuracies per iteration across repetitions.
+            std_accuracies (Dict[str, Dict[str, List]]): A nested dictionary where
+                std_accuracies[sampling_method][metric] is a list of length 
+                `num_al_iterations` with standard deviations per iteration across repetitions.
         """
         # Define map of colors to distinguish the sampling methods
         color_map = {
@@ -360,24 +367,39 @@ class ActiveLearningEvaluator():
         
         iterations = range(1, self.num_al_iterations + 1)
 
-        plt.figure(num="One Step Predictive Accuracy over Active Learning Iterations", figsize=(10, 6))
-                
-        # Plot mean and std for each sampling method using the specified color
-        for i, sampling_method in enumerate(self.sampling_methods):
-            method_name = sampling_method.name
-            mean_accuracies = all_mean_accuracies[i]
-            std_accuracies = all_std_accuracies[i]
+        # Create a plot for each evaluation metric
+        figures = {}
+        for metric in self.evaluation_metrics:
+            fig, ax = plt.subplots(
+                num=f"{metric.name} over Active Learning Iterations", figsize=(8, 5)
+            )
+            
+            # Plot mean and std for each sampling method using the specified color
+            for sampling_method in self.sampling_methods:
+                # Extract arrays without overwriting the original dictionary variables
+                mean_arr = mean_accuracies[sampling_method.name][metric.name]
+                std_arr = std_accuracies[sampling_method.name][metric.name]
 
-            # Lookup the color for this method from the map
-            color = color_map.get(method_name, "black")  # default to black if not found
+                # Lookup the color for this method from the map
+                color = color_map.get(sampling_method.name, "black")  # default to black if not found
 
-            plt.plot(iterations, mean_accuracies, label=f"{method_name}", color=color)
-            plt.errorbar(iterations, mean_accuracies, yerr=std_accuracies, fmt='o', 
-                         color=color, ecolor=color, capsize=3, elinewidth=1)
+                # Plot the mean curve
+                ax.plot(iterations, mean_arr, label=sampling_method.name, color=color)
+                # Plot error bars (±1 std)
+                ax.errorbar(
+                    iterations, mean_arr,
+                    yerr=std_arr, fmt='o',
+                    color=color, ecolor=color,
+                    capsize=3, elinewidth=1
+                )
 
-        # Customize and show the plot
-        plt.xlabel("Active Learning Iteration")
-        plt.ylabel("One-Step Predictive Accuracy")
-        plt.title("One-Step Predictive Accuracy over Active Learning Iterations")
-        plt.legend()
-        plt.grid(True)
+            # Customize axes and title
+            ax.set_xlabel("Active Learning Iteration")
+            ax.set_ylabel(metric.name)
+            ax.set_title(f"{metric.name} over Active Learning Iterations")
+            ax.legend()
+            ax.grid(True)
+
+            figures[metric.name] = fig
+
+        return figures

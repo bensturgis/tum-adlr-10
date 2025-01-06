@@ -1,25 +1,37 @@
 import gymnasium as gym
 import numpy as np
-from torch.utils.data import TensorDataset
+from typing import Dict
 
-class OneStepPredictiveAccuracyEvaluator:
+from metrics.evaluation_metric import EvaluationMetric
+from utils.train_utils import create_test_dataset
+
+class OneStepPredictiveAccuracyEvaluator(EvaluationMetric):
     """
-    Evaluates the one-step predictive accuracy of a learned environment against a true environment,
-    using a given test dataset of (state, action, next_state) samples.
+    Evaluates the one-step predictive accuracy of a learned environment against a true environment.
     """
 
-    def __init__(self, learned_env: gym.Env, dataset: TensorDataset) -> None:
+    def __init__(
+            self, true_env: gym.Env, learned_env: gym.Env, num_samples: int,
+            state_bounds: Dict[str, float]
+        ) -> None:
         """
-        Initializes the evaluator with a learned environment and a pre-created dataset of transitions.
+        Initializes the one-step evaluator with a true environment, a learned environment, and parameters 
+        to generate a test dataset of transitions.
 
         Args:
-            learned_env (gym.Env): The learned environment.
-            dataset (TensorDataset): A dataset of (state, action, next_state) samples.
+            true_env (gym.Env): The true environment used to generate the dataset.
+            learned_env (gym.Env): The learned environment to be evaluated.
+            num_samples (int): The number of samples ((state, action, next_state) pairs) to include 
+                               in the test dataset.
+            state_bounds (Dict[str, float]): Dictionary specifying the bounds for state sampling.
         """
         self.learned_env = learned_env
-        self.dataset = dataset
+        self.num_samples = num_samples
+        self.state_bounds = state_bounds
+        self.name = "One Step Predictive Accuracy"
+        self.dataset = create_test_dataset(true_env=true_env, num_samples=num_samples, state_bounds=state_bounds)
 
-    def compute_one_step_pred_accuracy(self) -> float:
+    def evaluate(self) -> float:
         """
         Computes the one-step predictive accuracy (RMSE) of the learned environment versus the
         true environment using the provided dataset.
@@ -52,3 +64,14 @@ class OneStepPredictiveAccuracyEvaluator:
         # Compute RMSE
         rmse = np.sqrt(np.mean(squared_errors))
         return rmse
+    
+    def params_to_dict(self) -> Dict[str, str]:
+        """
+        Converts hyperparameters into a dictionary.
+        """
+        parameter_dict = {
+            "name": self.name,
+            "num_samples": self.num_samples,
+            "state_bounds": {k: str(v) for k, v in self.state_bounds.items()},
+        }
+        return parameter_dict

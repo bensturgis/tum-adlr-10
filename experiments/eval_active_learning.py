@@ -3,12 +3,14 @@ import os
 sys.path.append(os.path.abspath("."))
 
 # Import modules and classes
+from active_learning import ActiveLearningEvaluator
 from dynamical_systems.mass_spring_damper_system import MassSpringDamperEnv
+from metrics.one_step_pred_accuracy import OneStepPredictiveAccuracyEvaluator
+from metrics.multi_step_pred_accuracy import MultiStepPredictiveAccuracyEvaluator
 from models.feedforward_nn import FeedforwardNN
 from models.mc_dropout_bnn import MCDropoutBNN
 from sampling_methods.random_exploration import RandomExploration
 from sampling_methods.random_sampling_shooting import RandomSamplingShooting
-from active_learning import ActiveLearningEvaluator
 
 # Hyperparameters for neural network and training
 HIDDEN_SIZE = 72          # Hidden units in the neural network
@@ -26,12 +28,25 @@ MPC_HORIZON = 20 # Number of steps (H) in each sampled action sequence (H = 10 i
 NUM_ACTION_SEQ = 2000 # Number of action sequences (K) sampled at each time step (K = 20000 in paper)
 NUM_PARTICLES = 100 # The number of particles for Monte Carlo sampling during performance evaluation
 
+# Hyperparameters for one-step predictive accuracy
+NUM_SAMPLES = 1250        # Number of (state, action, next_state) samples (N_1 = 1250 in paper)
+
+# TODO: find suitable hyperparameters to evaluate multi-step predictive accuracy
+# Hyperparameters for multi-step predictive accuracy
+NUM_TRAJECTORIES = 25     # Number of full trajectories generated in the true environment (N_2 = 10 in paper)
+TRAJCETORY_LENGTH = 200   # Maximum length of each trajectory (not specified in paper)
+NUM_INITIAL_STATES = 50   # Number of initial states sampled from each trajectory (not specified in paper)
+NUM_PREDICTION_STEPS = 20 # Number of steps for multi-step prediction evaluation (M = 20 in paper)
+
 # Hyperparameters for the active learning evaluation
 NUM_AL_ITERATIONS = 15    # Number of active learning iterations (20 in paper)
 NUM_EVAL_REPETITIONS = 5  # Number of evaluation runs for mean and variance (20 in paper)
 
 # Initialize the true environment
 true_env = MassSpringDamperEnv(noise_var=0.0)
+
+# Extract the minimum and maximum state values the environment can reach for the given horizon
+state_bounds = true_env.compute_state_bounds(horizon=HORIZON)
 
 # Set up the dynamics model and learned environment
 state_dim = true_env.observation_space.shape[0]
@@ -54,13 +69,31 @@ random_sampling_shooting = RandomSamplingShooting(
     num_action_seq=NUM_ACTION_SEQ,
     num_particles=NUM_PARTICLES,
 )
-sampling_methods = [random_exploration, random_sampling_shooting]
+sampling_methods = [random_exploration]
+
+# Initialize the evluation metrics 
+one_step_pred_acc_eval = OneStepPredictiveAccuracyEvaluator(
+    true_env=true_env,
+    learned_env=learned_env,
+    num_samples=NUM_SAMPLES,
+    state_bounds=state_bounds,
+)
+multi_step_pred_acc_eval = MultiStepPredictiveAccuracyEvaluator(
+    true_env=true_env,
+    learned_env=learned_env,
+    num_trajectories=NUM_TRAJECTORIES,
+    trajectory_horizon=TRAJCETORY_LENGTH,
+    num_initial_states=NUM_INITIAL_STATES,
+    num_prediction_steps=NUM_PREDICTION_STEPS,
+)
+evaluation_metrics = [one_step_pred_acc_eval, multi_step_pred_acc_eval]
 
 # Initialize the active learning evaluator
 active_learning_evaluator = ActiveLearningEvaluator(
     true_env=true_env,
     learned_env=learned_env,
     sampling_methods=sampling_methods,
+    evaluation_metrics=evaluation_metrics,
     num_al_iterations=NUM_AL_ITERATIONS,
     num_epochs=NUM_EPOCHS,
     batch_size=BATCH_SIZE,

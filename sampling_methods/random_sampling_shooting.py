@@ -2,7 +2,7 @@ import gymnasium as gym
 import numpy as np
 import torch
 from torch.utils.data import TensorDataset
-from typing import Tuple
+from typing import Dict
 from tqdm import tqdm
 
 from sampling_methods.sampling_method import SamplingMethod
@@ -228,7 +228,7 @@ class RandomSamplingShooting(SamplingMethod):
 
         return TensorDataset(state_tensor, action_tensor, next_state_tensor)
     
-    def params_to_dict(self) -> dict:
+    def params_to_dict(self) -> Dict[str, str]:
         """
         Converts hyperparameters into a dictionary.
         """
