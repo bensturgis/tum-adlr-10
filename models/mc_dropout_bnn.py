@@ -5,12 +5,21 @@ from typing import Dict
 class MCDropoutBNN(nn.Module):
     def __init__(
             self, state_dim, action_dim, hidden_size=64, drop_prob=0.5,
-            num_monte_carlo_samples=50, device=None
+            num_monte_carlo_samples=50, device=None, input_bound:torch.Tensor = torch.Tensor([10.0, 10.0, 1.0])
     ):
+        """
+        BNN Initialization
+
+        Args:
+            num_monte_carlo_samples: number of samples used for bayesian prediction
+            input_bound: define absolute bounds for input states and actions, for symmetric input
+                         inputs should not exceed this boundary
+                         given as [state1, state2, ..., action1, ...]
+        """
         super(MCDropoutBNN, self).__init__()
         self.device = device
         self.model = nn.Sequential(
-            nn.Linear(state_dim + action_dim, hidden_size),
+            nn.Linear((state_dim + action_dim) * 2, hidden_size), # augment dim for symmetric inputs
             nn.ReLU(inplace = True),
             nn.Dropout(drop_prob),
             nn.Linear(hidden_size, state_dim),
@@ -19,12 +28,18 @@ class MCDropoutBNN(nn.Module):
             self.to(self.device)
         self.num_monte_carlo_samples = num_monte_carlo_samples
         self.name = "Monte Carlo Dropout Bayesian Neural Network"
+        self.input_bound = input_bound.to(self.device)
 
     def forward(self, state, action):
+        """
+        augment inputs by constructing symmetric value for each dim
+        """
         x = torch.cat([state, action], dim=1)
-        return self.model(x)
+        x_sym = torch.where(x >= 0, self.input_bound - x, -self.input_bound - x)
+        x_aug = torch.cat((x, x_sym), dim=1)
+        return self.model(x_aug)
 
-    def bayesian_pred(self, state, action): # TODO: how many repeats do we need to get good distribution prediction?
+    def bayesian_pred(self, state, action):
         """
         Perform Bayesian prediction by running the model multiple times (MC Dropout)
         and calculate the mean and variance of the predictions.y
@@ -73,13 +88,18 @@ class MCDropoutBNN(nn.Module):
 
         return mean_pred, var_pred
 
-    def enable_dropout(self, model):
+    def enable_dropout(self, enable):
         """
-        Function to enable the dropout layers during inference.
+        Function to enable/disable the dropout layers during inference.
         """
-        for m in self.modules():
-            if isinstance(m, nn.Dropout):
-                m.train()
+        if enable:
+            for m in self.modules():
+                if isinstance(m, nn.Dropout):
+                    m.train()
+        else:
+            for m in self.modules():
+                if isinstance(m, nn.Dropout):
+                    m.eval()
     
     def reset_weights(self):
         """
