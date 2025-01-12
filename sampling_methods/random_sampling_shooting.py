@@ -207,7 +207,7 @@ class RandomSamplingShooting(SamplingMethod):
                 # Step the environment using the sampled action and append the next state
                 next_state, _, terminated, truncated, _ = true_env.step(best_action_seq[0])
                 next_states.append(next_state)
-                learned_env.reset(state=true_env.unwrapped.state) # synchronize state to learn_env
+                learned_env.state = true_env.unwrapped.state # synchronize state to learn_env
 
                 # Reset if the environment reaches a terminal or truncated state
                 if terminated or truncated:

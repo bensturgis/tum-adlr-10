@@ -9,7 +9,7 @@ BOUND_SHRINK_FACTOR = 0.8
 
 def plot_state_space_trajectory(
     experiment: int, sampling_method: str, num_al_iterations: int, state_bounds: Dict[str, float],
-    repetition: int = 0,
+    repetition: int = 0, show_plot: bool = True
 ):
     """
     Plot the state space exploration for a specified experiment, sampling method,
@@ -56,12 +56,15 @@ def plot_state_space_trajectory(
     plt.grid(True)
     plt.xlim(BOUND_SHRINK_FACTOR * state_bounds["min_position"], BOUND_SHRINK_FACTOR * state_bounds["max_position"])
     plt.ylim(BOUND_SHRINK_FACTOR * state_bounds["min_velocity"], BOUND_SHRINK_FACTOR * state_bounds["max_velocity"])
-    plt.show()
+    if show_plot:
+        plt.show()
+    else:
+        plt.savefig(experiment_path / f'state_space_trajectory_rep{repetition}_iter{num_al_iterations}.png', dpi=300, bbox_inches='tight')
 
 
 def plot_state_space_pred_var(
     experiment: int, sampling_method: str, num_al_iterations: int, state_bounds: Dict[str, float],
-    repetition: int = 0, show_plot=True
+    repetition: int = 0, show_plot: bool = True
 ):
     """
     Plot the predictive variance over all state and action space for a Bayesian Model.
@@ -147,4 +150,7 @@ def plot_state_space_pred_var(
     plt.legend()
     plt.xlim(BOUND_SHRINK_FACTOR * state_bounds["min_position"], BOUND_SHRINK_FACTOR * state_bounds["max_position"])
     plt.ylim(BOUND_SHRINK_FACTOR * state_bounds["min_velocity"], BOUND_SHRINK_FACTOR * state_bounds["max_velocity"])
-    plt.show()
+    if show_plot:
+        plt.show()
+    else:
+        plt.savefig(experiment_path / f'state_space_pred_var_rep{repetition}_iter{num_al_iterations}.png', dpi=300, bbox_inches='tight')

@@ -69,7 +69,7 @@ random_sampling_shooting = RandomSamplingShooting(
     num_action_seq=NUM_ACTION_SEQ,
     num_particles=NUM_PARTICLES,
 )
-sampling_methods = [random_exploration]
+sampling_methods = [random_sampling_shooting]
 
 # Initialize the evluation metrics 
 one_step_pred_acc_eval = OneStepPredictiveAccuracyEvaluator(
@@ -88,7 +88,7 @@ multi_step_pred_acc_eval = MultiStepPredictiveAccuracyEvaluator(
     num_initial_states=NUM_INITIAL_STATES,
     num_prediction_steps=NUM_PREDICTION_STEPS,
 )
-evaluation_metrics = [one_step_pred_acc_eval, multi_step_pred_acc_eval]
+evaluation_metrics = [one_step_pred_acc_eval]
 
 # Initialize the active learning evaluator
 active_learning_evaluator = ActiveLearningEvaluator(
