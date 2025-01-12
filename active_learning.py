@@ -8,7 +8,6 @@ from sampling_methods.sampling_method import SamplingMethod
 from sampling_methods.random_exploration import RandomExploration
 from utils.train_utils import combine_datasets, create_dataloader, create_test_dataset
 from typing import Dict, List
-import pandas as pd
 from pathlib import Path
 import json
 import torch
@@ -106,8 +105,6 @@ class ActiveLearningEvaluator():
             training_results[sampling_method.name] = {}
             
             for repetition in range(self.num_eval_repetitions):
-                print(f"Evaluation Repetition {repetition + 1}/{self.num_eval_repetitions}")
-
                 # Collect initial dataset using random exploration
                 random_exploration = RandomExploration(sampling_method.horizon)
                 total_dataset = random_exploration.sample(self.true_env)
@@ -125,8 +122,9 @@ class ActiveLearningEvaluator():
 
                 # Perform active learning iterations
                 for iteration in range(self.num_al_iterations):
-                    print(f"Active Learning Iteration {iteration + 1}/{self.num_al_iterations}")
-                    print("Number of samples: ", len(total_dataset))
+                    print(f"Evaluation Repetition {repetition + 1}/{self.num_eval_repetitions}\n"
+                          f"Active Learning Iteration {iteration + 1}/{self.num_al_iterations}\n"
+                          f"Number of samples: {len(total_dataset)}")
                     
                     # Reset the weights of the learned model
                     self.learned_env.model.reset_weights()

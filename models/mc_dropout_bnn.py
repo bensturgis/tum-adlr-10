@@ -70,7 +70,6 @@ class MCDropoutBNN(nn.Module):
         # Calculate mean and variance along the sampling dimension
         mean_pred = preds.mean(dim=1).detach().cpu().numpy()
         var_pred = preds.var(dim=1).detach().cpu().numpy()
-        
 
         return mean_pred, var_pred
 

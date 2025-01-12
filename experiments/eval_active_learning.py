@@ -4,7 +4,7 @@ sys.path.append(os.path.abspath("."))
 
 # Import modules and classes
 from active_learning import ActiveLearningEvaluator
-from dynamical_systems.mass_spring_damper_system import MassSpringDamperEnv
+from dynamical_systems.mass_spring_damper_system import TrueMassSpringDamperEnv, LearnedMassSpringDamperEnv
 from metrics.one_step_pred_accuracy import OneStepPredictiveAccuracyEvaluator
 from metrics.multi_step_pred_accuracy import MultiStepPredictiveAccuracyEvaluator
 from models.feedforward_nn import FeedforwardNN
@@ -43,7 +43,7 @@ NUM_AL_ITERATIONS = 15    # Number of active learning iterations (20 in paper)
 NUM_EVAL_REPETITIONS = 5  # Number of evaluation runs for mean and variance (20 in paper)
 
 # Initialize the true environment
-true_env = MassSpringDamperEnv(noise_var=0.0)
+true_env = TrueMassSpringDamperEnv(noise_var=0.0)
 
 # Extract the minimum and maximum state values the environment can reach for the given horizon
 state_bounds = true_env.compute_state_bounds(horizon=HORIZON)
@@ -59,7 +59,7 @@ dynamics_model = MCDropoutBNN(
     drop_prob=DROP_PROB,
     device=DEVICE,
 )
-learned_env = MassSpringDamperEnv(model=dynamics_model, noise_var=0.0)
+learned_env = LearnedMassSpringDamperEnv(model=dynamics_model)
 
 # Initialize the sampling methods
 random_exploration = RandomExploration(horizon=HORIZON)
@@ -69,7 +69,7 @@ random_sampling_shooting = RandomSamplingShooting(
     num_action_seq=NUM_ACTION_SEQ,
     num_particles=NUM_PARTICLES,
 )
-sampling_methods = [random_exploration]
+sampling_methods = [random_exploration, random_sampling_shooting]
 
 # Initialize the evluation metrics 
 one_step_pred_acc_eval = OneStepPredictiveAccuracyEvaluator(

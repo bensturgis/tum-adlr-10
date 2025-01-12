@@ -37,7 +37,7 @@ class RandomSamplingShooting(SamplingMethod):
         for monte carlo integration. 
 
         Args:
-            pred_var (np.ndarray): Variances of bayesian prediction of shape
+            pred_vars (np.ndarray): Variances of bayesian prediction of shape
                                    [batch_size, num_particles, action_seq_length, state_dim] where
                                    `num_particles` is denoted as P and state_dim is denoted as d_s
                                    in the paper. `action_seq_length` can either be the MPC horizon H

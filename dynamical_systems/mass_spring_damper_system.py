@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
@@ -5,106 +6,95 @@ import pygame
 import platform
 import ctypes
 import torch
-from typing import Dict, Tuple, Any
+from typing import Dict, Tuple, Any, Union
 
 from models.feedforward_nn import FeedforwardNN
 from models.mc_dropout_bnn import MCDropoutBNN
 
-class MassSpringDamperEnv(gym.Env):
-    def __init__(
-            self, m=0.1, k=1.0, d=0.1, delta_t=0.01, nlin=False, noise_var=0.0, model=None
-    ):
-        super(MassSpringDamperEnv, self).__init__()
+class MassSpringDamperEnv(gym.Env, ABC):
+    """
+    Abstract base class defining the structure for implementing a Gym-compatible
+    mass-spring-damper system.
+    """
+    def __init__(self):
+        """
+        Initialize the mass-spring-damper environment.
+        """
+        super().__init__()
 
-        # Physical parameters
-        self.nonlinear = nlin
-        self.noise_var = noise_var
-        self.model = model
-        self.m = m
-        self.k = k
-        self.d = d
-        self.delta_t = delta_t  # Time step for discretization
-        self.input_limit = 1.0
         self.name = "Mass-Spring-Damper System"
 
         # State: [position, velocity]
-        self.state = np.array([0.0, 0.0])
+        self.state = np.array([0.0, 0.0], dtype=np.float32)
 
-        # Action space: Force input with constraints
-        self.action_space = spaces.Box(low=-self.input_limit, high=self.input_limit, shape=(1,), dtype=np.float32)
+        # Action space: Force input constrained to [-input_limit, input_limit]
+        input_limit = 1.0
+        self.action_space = spaces.Box(low=-input_limit, high=input_limit, shape=(1,), dtype=np.float32)
 
-        # Observation space: [position, velocity]
-        self.observation_space = spaces.Box(low=-6, high=6, shape=(2,), dtype=np.float32)
+        # Observation space: State variables [position, velocity] with unbounded range
+        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(2,), dtype=np.float32)
 
-        # Initialize pygame for rendering
+        # Parameters for rendering environment with pygame
         self.screen = None
-        self.width, self.height = 600, 200
-        self.mass_pos = self.width // 2  # Initial mass position in the middle
-        self.spring_origin = self.mass_pos - 200  # Fixed point for spring start
-    
-    def reset(self, state=None):
-        # Reset state to given conditions
-        if state is not None:
-            self.state = state
-            return self.state, {}
-        # Reset state to initial conditions
-        self.state = np.array([0.0, 0.0])  # Start at rest
+        self.window_width, self.window_height = 600, 200
+        self.initial_mass_pos = self.window_width // 2 # Initial position of the mass
+        self.spring_origin = self.initial_mass_pos - 200 # Fixed anchor point of spring
+
+    @abstractmethod
+    def step(self, action: np.array) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
+        pass    
+
+    def reset(self, seed: int = None) -> Tuple[np.ndarray, Dict]:
+        """
+        Resets the environment to its initial state.
+
+        Args:
+            seed (int, optional): Included for compatibility with Stable-Baselines3.
+
+        Returns:
+            Tuple[np.ndarray, dict]: Initial state and additional reset info.
+        """
+        self.state = np.array([0.0, 0.0], dtype=np.float32)
         return self.state, {}
+    
+    def render(self):
+        """
+        Renders the current state of the mass-spring-damper system using pygame.
+        """
+        # Initialize the pygame screen if not already set
+        if self.screen is None:
+            pygame.init()
+            self.screen = pygame.display.set_mode((self.width, self.height))
+            pygame.display.set_caption("Mass-Spring-Damper System")
 
-    def step(self, action: np.array) -> Tuple[Any, float, bool, bool, dict]:
-        # Unpack state
-        x, v = self.state
+        self.screen.fill((255, 255, 255))
 
-        # Apply force (action)
-        F = action.squeeze()
+        # Calculate the mass's position on the screen
+        mass_pos = int(self.initial_mass_pos + self.state[0] * 25)
 
-        # Apply model when exists
-        if self.model is not None:
-            if isinstance(self.model, MCDropoutBNN):
-                s = torch.tensor(self.state, dtype=torch.float32).unsqueeze(0)  # torch.Size([1, 2])
-                a = torch.tensor(action, dtype=torch.float32).unsqueeze(0)  # torch.Size([1, 1])
-                next_state, pred_var = self.model.bayesian_pred(s, a)
-                self.state = next_state.squeeze()
-                
-                reward = -np.sum(np.square(self.state))
-                terminated = False
-                truncated = False
-                info = {"var": pred_var.squeeze()} # output variance of predictive distribution
+        # Draw the spring
+        pygame.draw.line(self.screen, (0, 0, 0), 
+                         (self.spring_origin, self.height // 2 - 20),
+                         (self.spring_origin, self.height // 2 + 20),
+                         4)
+        pygame.draw.line(self.screen, (0, 0, 0),
+                         (self.spring_origin, self.height // 2),
+                         (mass_pos, self.height // 2), 
+                         2)
 
-                return self.state, reward, terminated, truncated, info
-            
-            if isinstance(self.model, FeedforwardNN):
-                s = torch.tensor(self.state, dtype=torch.float32).unsqueeze(0)
-                a = torch.tensor(action, dtype=torch.float32).unsqueeze(0)
-                next_state = self.model(s, a)
-                self.state = next_state.squeeze(0).detach().numpy()
-                
-                reward = -np.sum(np.square(self.state))
-                terminated = False
-                truncated = False
+        # Draw the mass
+        mass_rect = pygame.Rect(mass_pos - 10, self.height // 2 - 10, 20, 20)
+        pygame.draw.rect(self.screen, (0, 255, 0), mass_rect)
 
-                return self.state, reward, terminated, truncated, {}
+        pygame.display.flip()
 
-        # Non-linear stiffness
-        if self.nonlinear:
-            f_k = np.tanh(x)
-            x_ = x + self.delta_t * v
-            v_ = v + self.delta_t * (-self.d * v - f_k + F) / self.m
-            self.state = np.array([x_, v_])
-        else:
-            A = np.array([[0, 1], [-self.k / self.m, -self.d / self.m]])
-            B = np.array([0, 1 / self.m])
-
-            self.state = (np.eye(2) + self.delta_t * A) @ self.state + self.delta_t * B * F
-        self.state = np.random.normal(loc=self.state, scale=self.noise_var, size=(2,)) # add gaussian noise
-
-        # Calculate reward (deviation from origin)
-        reward = -np.sum(np.square(self.state))
-
-        terminated = False # no terminal state defined
-        truncated = False # maybe when x exceeds some bounds
-
-        return self.state, reward, terminated, truncated, {}
+    def close(self):
+        """
+        Closes the rendering window and releases pygame resources.
+        """
+        if self.screen is not None:
+            pygame.quit()
+            self.screen = None
 
     def compute_state_bounds(self, horizon: int) -> Dict[str, float]:
         """
@@ -127,7 +117,7 @@ class MassSpringDamperEnv(gym.Env):
 
         # Helper function to simulate and track min/max states using a constant action
         def simulate(action_val):
-            self.reset(state=np.array([0.0, 0.0]))
+            self.reset()
             min_pos = self.state[0]
             max_pos = self.state[0]
             min_vel = self.state[1]
@@ -169,51 +159,190 @@ class MassSpringDamperEnv(gym.Env):
             "max_action": max_action,
             "min_action": min_action,
         }
+    
+    @abstractmethod
+    def params_to_dict(self) -> Dict[str, str]:
+        """
+        Converts hyperparameters into a dictionary.
+        """
+        pass
 
-    def render(self, mode="human"):
-        if self.screen is None:
-            pygame.init()
-            self.screen = pygame.display.set_mode((self.width, self.height))
-            pygame.display.set_caption("Mass-Spring-Damper System")
-            # Set window to be always on top
-            if platform.system() == "Windows":
-                hwnd = pygame.display.get_wm_info()['window']
-                ctypes.windll.user32.SetWindowPos(hwnd, -1, 0, 0, 0, 0, 0x0001)
+class TrueMassSpringDamperEnv(MassSpringDamperEnv):
+    """
+    The "true" mass-spring-damper environment, simulating the real system dynamics.
 
-        self.screen.fill((255, 255, 255))
+    This environment models the physical mass-spring-damper system with exact
+    parameters, serving as the ground truth for comparison with a learned environment.
+    """
+    def __init__(
+        self, mass: float = 0.1, stiffness: float = 1.0, damping: float = 0.1,
+        time_step: float = 0.01, nonlinear: bool = False, noise_var: float = 0.0,
+    ):
+        """
+        Initialize the "true" mass-spring-damper environment.
 
-        # Parameters for visualization
-        x = self.state[0]
-        mass_x = int(self.mass_pos + x * 25)  # Scale position for visualization
+        Args:
+            mass (float, optional): Mass of the system.
+            stiffness (float, optional): Spring constant.
+            damping (float, optional): Damping coefficient.
+            time_step (float, optional): Discretization time step.
+            nonlinear (bool, optional): Whether to use a non-linear stiffness model.
+            noise_var (float, optional): Variance of Gaussian noise added to the state.
+        """
+        super().__init__()
+        
+        # Physical parameters
+        self.mass = mass
+        self.stiffness = stiffness
+        self.damping = damping
+        self.time_step = time_step
+        self.nonlinear = nonlinear
+        self.noise_var = noise_var
 
-        pygame.draw.line(self.screen, (0, 0, 0), (self.spring_origin, self.height // 2 - 20), (self.spring_origin, self.height // 2 + 20), 4)
+    def step(self, action: np.array) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
+        """
+        Perform single step in the mass-spring-damper environment by applying given action
+        according to the real system dynamics.
+        
+        Args:
+            action (np.ndarray): Force applied to the system.
 
-        # Draw spring as a line
-        pygame.draw.line(self.screen, (0, 0, 0), (self.spring_origin, self.height // 2), (mass_x, self.height // 2), 2)
+        Returns:
+            Tuple[np.ndarray, float, bool, bool, dict]: Next state, reward, termination flag,
+                truncation flag, and additional info.
+        """
+        # Unpack current state
+        position, velocity = self.state
 
-        # Draw mass as a rectangle
-        mass_rect = pygame.Rect(mass_x - 10, self.height // 2 - 10, 20, 20)
-        pygame.draw.rect(self.screen, (0, 255, 0), mass_rect)
+        force = action.squeeze()
+        if self.nonlinear:
+            # Non-linear stiffness model
+            spring_force = np.tanh(position)
+            new_position = position + self.time_step * velocity
+            new_velocity = velocity + self.time_step * (-self.damping * velocity - spring_force + force) / self.mass
+            self.state = np.array([new_position, new_velocity], dtype=np.float32)
+        else:
+            # Linear stiffness model          
+            A = np.array([[0, 1], [-self.stiffness / self.mass, -self.damping / self.mass]], dtype=np.float32)
+            B = np.array([0, 1 / self.mass], dtype=np.float32)
+            self.state = (np.eye(2) + self.time_step * A) @ self.state + self.time_step * B * force
 
-        pygame.display.flip()
+        # Add Gaussian noise to the state
+        self.state = np.random.normal(loc=self.state, scale=self.noise_var, size=(2,)).astype(np.float32)
 
+        # Reward is not needed for the true system
+        reward = 0.0
+
+        # No termination and truncation conditions defined
+        terminated = False
+        truncated = False
+
+        return self.state, reward, terminated, truncated, {}
+    
     def params_to_dict(self) -> Dict[str, str]:
         """
         Converts hyperparameters into a dictionary.
         """
         parameter_dict = {
             "name": self.name,
-            "m": self.m,
-            "k": self.k,
-            "d": self.d,
-            "delta_t": self.delta_t,
+            "mass": self.mass,
+            "stiffness": self.stiffness,
+            "damping": self.damping,
+            "time_step": self.time_step,
             "nonlinear": self.nonlinear,
             "noise_var": self.noise_var,
-            "model": None if self.model is None else self.model.params_to_dict()
         }
         return parameter_dict
 
-    def close(self):
-        if self.screen is not None:
-            pygame.quit()
-            self.screen = None
+class LearnedMassSpringDamperEnv(MassSpringDamperEnv):
+    """
+    A mass-spring-damper environment with a learned dynamics model.
+    
+    This environment simulates a system with mass-spring-damper dynamics
+    and uses a learned model (e.g., Bayesian Neural Network or Feedforward Neural Network)
+    to predict the next state and reward.
+    """
+    def __init__(self, model: Union[MCDropoutBNN, FeedforwardNN]):
+        """
+        Initialize the environment with a learned model.
+
+        Args:
+            model (Union[MCDropoutBNN, FeedforwardNN]): The dynamics model to be used
+                for state prediction. Can be either a Bayesian Neural Network
+                or a standard Feedforward Neural Network.
+        """
+        super().__init__()
+        self.model = model
+
+    def step(self, action: np.array) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
+        """
+        Perform single step in the mass-spring-damper environment by applying given action
+        according to learned dynamics.
+        
+        Args:
+            action (np.ndarray): Force applied to the system.
+
+        Returns:
+            Tuple[np.ndarray, float, bool, bool, dict]: Next state, reward, termination flag,
+                truncation flag, and additional info.
+        """
+        state_tensor = torch.tensor(self.state, dtype=torch.float32).unsqueeze(0)  # Shape: [1, 2]
+        action_tensor = torch.tensor(action, dtype=torch.float32).unsqueeze(0)    # Shape: [1, 1]
+
+        # Model-specific prediction logic
+        if isinstance(self.model, MCDropoutBNN):
+            # Bayesian model prediction: returns next state and variance
+            next_state, pred_var = self.model.bayesian_pred(state_tensor, action_tensor)
+            # Update state
+            self.state = next_state.squeeze()
+            info = {"var": pred_var.squeeze()}
+            reward = self.differential_entropy(pred_var.squeeze())
+        elif isinstance(self.model, FeedforwardNN):
+            # Deterministic model prediction: only returns next state
+            next_state = self.model(state_tensor, action_tensor).squeeze(0).detach().numpy()
+            # Update state
+            self.state = next_state.squeeze(0).detach().numpy()
+            reward = 0.0  # No reward for deterministic models
+            info = {}
+        else:
+            raise ValueError(f"Unsupported model type: {type(self.model)}. "
+                             f"Expected MCDropoutBNN or FeedforwardNN.")
+
+        # No termination and truncation conditions defined
+        terminated = False
+        truncated = False
+
+        return self.state, reward, terminated, truncated, info
+    
+    def differential_entropy(self, pred_vars: np.ndarray) -> float:
+        """
+        Compute the differential entropy of a multivariate Gaussian based on variances from
+        bayesian inference.
+        
+        Args:
+            pred_vars (np.ndarray): Predicted variances from bayesian inference of shape [state_dim].
+                                    
+        Returns:
+            float: The computed differential entropy.
+        """
+        
+        # Extract state dimension
+        state_dim = pred_vars.size
+
+        # Constant term for Gaussian differential entropy
+        const = state_dim * np.log(np.sqrt(2 * np.pi * np.e))
+
+        # Differential entropy computation
+        diff_entropy = const + 0.5 * np.sum(np.log(pred_vars))
+
+        return diff_entropy
+            
+    def params_to_dict(self) -> Dict[str, str]:
+        """
+        Converts hyperparameters into a dictionary.
+        """
+        parameter_dict = {
+            "name": self.name,
+            "model": self.model.params_to_dict()
+        }
+        return parameter_dict
