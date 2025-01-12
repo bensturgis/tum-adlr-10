@@ -39,7 +39,7 @@ def combine_datasets(dataset1: TensorDataset, dataset2: TensorDataset) -> Tensor
     return TensorDataset(*combined_tensors)
 
 def create_test_dataset(
-    true_env: gym.Env, num_samples: int, state_bounds: Dict[str, float]
+    true_env: gym.Env, state_bounds: Dict[str, float], num_samples: int
 ) -> TensorDataset:
     """
     Samples states and actions from a true environment, computes their next states,
@@ -47,8 +47,9 @@ def create_test_dataset(
 
     Args:
         true_env (gym.Env): The true environment.
+        state_bounds (Dict[str, float]): State bounds a dynamical system can reach within
+                                         a given horizon for state sampling.
         num_samples (int): Number of samples to generate.
-        state_bounds (Dict[str, float]): Dictionary specifying the bounds for state sampling.
 
     Returns:
         TensorDataset: A PyTorch dataset containing (state, action, next_state) triples

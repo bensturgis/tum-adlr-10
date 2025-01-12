@@ -1,6 +1,6 @@
 import gymnasium as gym
 import numpy as np
-from typing import Dict, List, Any
+from typing import Dict
 
 from metrics.evaluation_metric import EvaluationMetric
 
@@ -10,8 +10,9 @@ class MultiStepPredictiveAccuracyEvaluator(EvaluationMetric):
     """
 
     def __init__(
-        self, true_env: gym.Env, learned_env: gym.Env, num_trajectories: int,
-        trajectory_horizon: int, num_initial_states: int, num_prediction_steps: int
+        self, true_env: gym.Env, learned_env: gym.Env, state_bounds: Dict[str, float], 
+        num_trajectories: int, trajectory_horizon: int, num_initial_states: int,
+        num_prediction_steps: int
     ) -> None:
         """
         Initializes the multi-step evaluator with both true and learned environments,
@@ -20,6 +21,8 @@ class MultiStepPredictiveAccuracyEvaluator(EvaluationMetric):
         Args:
             true_env (gym.Env): The true environment used to generate trajectories.
             learned_env (gym.Env): The learned environment whose predictions are to be evaluated.
+            state_bounds (Dict[str, float]): State bounds a dynamical system can reach within a given 
+                                             horizon for sampling the start states of the trajectories.
             num_trajectories (N_2) (int): Number of full trajectories to roll out in the true environment.
             trajectory_horizon (int): Length of the full trajectories.
             num_initial_states (N_3) (int): Number of initial states to sample from each trajectory
@@ -37,13 +40,25 @@ class MultiStepPredictiveAccuracyEvaluator(EvaluationMetric):
         # the chosen initial indices from which we'll start multi-step rollouts
         self.trajectories_data = []
 
-        # Generate trajectories by rolling out in the true environment
-        for _ in range(num_trajectories):
-            # Reset the true environment to get the initial state
-            initial_state, _ = true_env.reset()
+        # Use scaled bounds for sampling start states of the trajectories
+        state_low = 0.5 * np.array([state_bounds["min_position"], state_bounds["min_velocity"]])
+        state_high = 0.5 * np.array([state_bounds["max_position"], state_bounds["max_velocity"]])
+
+        # Sample start states uniformly within the computed range
+        start_states = np.random.uniform(
+            low=state_low,
+            high=state_high,
+            size=(self.num_trajectories, true_env.observation_space.shape[0])
+        )
+
+        # Generate trajectories by rolling out in the true environment starting from
+        # a start state
+        for start_state in start_states:
+            # Set the true environment to a start state
+            true_env.state = start_state
 
             # Collect states and actions
-            states = [initial_state]
+            states = [start_state]
             actions = []
 
             for _ in range(trajectory_horizon):

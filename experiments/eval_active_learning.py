@@ -33,9 +33,9 @@ NUM_SAMPLES = 1250        # Number of (state, action, next_state) samples (N_1 =
 
 # TODO: find suitable hyperparameters to evaluate multi-step predictive accuracy
 # Hyperparameters for multi-step predictive accuracy
-NUM_TRAJECTORIES = 25     # Number of full trajectories generated in the true environment (N_2 = 10 in paper)
-TRAJCETORY_LENGTH = 200   # Maximum length of each trajectory (not specified in paper)
-NUM_INITIAL_STATES = 50   # Number of initial states sampled from each trajectory (not specified in paper)
+NUM_TRAJECTORIES = 125     # Number of full trajectories generated in the true environment (N_2 = 10 in paper)
+TRAJCETORY_LENGTH = 50   # Maximum length of each trajectory (not specified in paper)
+NUM_INITIAL_STATES = 10   # Number of initial states sampled from each trajectory (not specified in paper)
 NUM_PREDICTION_STEPS = 20 # Number of steps for multi-step prediction evaluation (M = 20 in paper)
 
 # Hyperparameters for the active learning evaluation
@@ -69,18 +69,20 @@ random_sampling_shooting = RandomSamplingShooting(
     num_action_seq=NUM_ACTION_SEQ,
     num_particles=NUM_PARTICLES,
 )
-sampling_methods = [random_exploration, random_sampling_shooting]
+sampling_methods = [random_exploration]
 
 # Initialize the evluation metrics 
 one_step_pred_acc_eval = OneStepPredictiveAccuracyEvaluator(
     true_env=true_env,
     learned_env=learned_env,
-    num_samples=NUM_SAMPLES,
     state_bounds=state_bounds,
+    num_samples=NUM_SAMPLES,
 )
+    
 multi_step_pred_acc_eval = MultiStepPredictiveAccuracyEvaluator(
     true_env=true_env,
     learned_env=learned_env,
+    state_bounds=state_bounds,
     num_trajectories=NUM_TRAJECTORIES,
     trajectory_horizon=TRAJCETORY_LENGTH,
     num_initial_states=NUM_INITIAL_STATES,
