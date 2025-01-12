@@ -94,9 +94,10 @@ def plot_state_space_pred_var(
     # load corresponding model
     base_path = Path(__file__).parent.parent / "experiments" / "active_learning_evaluations"
     experiment_path = base_path / f"experiment_{experiment}"
-    model_weights_file = experiment_path / "training_results" / sampling_method / f"repetition_{repetition}" / f"iteration_{num_al_iterations}" / "model_weights.pt"
-    if not model_weights_file.exists():
-        raise FileNotFoundError(f"Weights file not found at: {model_weights_file}")
+    if num_al_iterations > 0:
+        model_weights_file = experiment_path / "training_results" / sampling_method / f"repetition_{repetition}" / f"iteration_{num_al_iterations}" / "model_weights.pt"
+        if not model_weights_file.exists():
+            raise FileNotFoundError(f"Weights file not found at: {model_weights_file}")
     # Hyperparameters for neural network
     STATE_DIM = 2
     ACTION_DIM = 1
@@ -104,8 +105,10 @@ def plot_state_space_pred_var(
     DROP_PROB = 0.1           # Dropout probability for the bayesian neural network
     # Initialize trained dynamics model and load saved weights
     bnn_model = MCDropoutBNN(STATE_DIM, ACTION_DIM, hidden_size=HIDDEN_SIZE, drop_prob=DROP_PROB)
-    # bnn_model.reset_weights()
-    bnn_model.load_state_dict(torch.load(model_weights_file))
+    if num_al_iterations == 0:
+        bnn_model.reset_weights()
+    else:
+        bnn_model.load_state_dict(torch.load(model_weights_file))
 
     # calculate predictive variance for each point
     states_batch = torch.tensor(np.column_stack((X_flat, V_flat)), dtype=torch.float32)  # [batch_size, state_dim]
