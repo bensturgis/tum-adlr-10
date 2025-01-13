@@ -48,9 +48,6 @@ class RandomExploration(SamplingMethod):
             # Step the environment using the sampled action
             next_state, _, terminated, truncated, _ = true_env.step(action)
             
-            # Ensure the action has the correct dimensionality (expand if scalar)
-            action = np.expand_dims(action, axis=0) if action.ndim < 1 else action
-            
             # Append the action and the resulting next state to their respective lists
             actions.append(action)
             next_states.append(next_state)

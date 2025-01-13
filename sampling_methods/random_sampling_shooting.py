@@ -16,7 +16,7 @@ class RandomSamplingShooting(SamplingMethod):
         Initialize RandomSamplingShooting object.
 
         Args:
-            horizon (T) (int): The total planning horizon (T).
+            horizon (T) (int): The total planning horizon.
             mpc_horizon (H) (int): The number of steps (H) in each action sequence.
             num_action_seq (K) (int): The number of action sequences (K) to sample at each 
                                       time step.
@@ -158,7 +158,7 @@ class RandomSamplingShooting(SamplingMethod):
 
         Returns:
             TensorDataset: A PyTorch TensorDataset containing the collected
-                        (state, action, next_state) transitions.
+                           (state, action, next_state) transitions.
         """
         # Lists to store states, actions, and next states collected during sampling
         states = []

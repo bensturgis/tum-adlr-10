@@ -11,6 +11,7 @@ from models.feedforward_nn import FeedforwardNN
 from models.mc_dropout_bnn import MCDropoutBNN
 from sampling_methods.random_exploration import RandomExploration
 from sampling_methods.random_sampling_shooting import RandomSamplingShooting
+from sampling_methods.soft_actor_critic import SoftActorCritic
 
 # Hyperparameters for neural network and training
 HIDDEN_SIZE = 72          # Hidden units in the neural network
@@ -27,6 +28,9 @@ HORIZON = 50              # Trajectory time horizon (T = 50 in paper)
 MPC_HORIZON = 20 # Number of steps (H) in each sampled action sequence (H = 10 in paper) / Set H = 0 to discard MPC
 NUM_ACTION_SEQ = 2000 # Number of action sequences (K) sampled at each time step (K = 20000 in paper)
 NUM_PARTICLES = 100 # The number of particles for Monte Carlo sampling during performance evaluation
+
+# Hyperparamters for the Soft Actor-Critic (SAC)
+TOTAL_TIMESTEPS = 10000 # The total number of timesteps to train the SAC in each active learning iteration
 
 # Hyperparameters for one-step predictive accuracy
 NUM_SAMPLES = 1250        # Number of (state, action, next_state) samples (N_1 = 1250 in paper)
@@ -69,7 +73,11 @@ random_sampling_shooting = RandomSamplingShooting(
     num_action_seq=NUM_ACTION_SEQ,
     num_particles=NUM_PARTICLES,
 )
-sampling_methods = [random_sampling_shooting]
+soft_actor_critic = SoftActorCritic(
+    horizon=HORIZON, 
+    total_timesteps=TOTAL_TIMESTEPS
+)
+sampling_methods = [soft_actor_critic]
 
 # Initialize the evluation metrics 
 one_step_pred_acc_eval = OneStepPredictiveAccuracyEvaluator(

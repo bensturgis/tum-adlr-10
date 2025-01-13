@@ -44,12 +44,13 @@ class MassSpringDamperEnv(gym.Env, ABC):
     def step(self, action: np.array) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
         pass    
 
-    def reset(self, seed: int = None) -> Tuple[np.ndarray, Dict]:
+    def reset(self, seed: int = None, options: Dict[str, Any] = None) -> Tuple[np.ndarray, Dict]:
         """
         Resets the environment to its initial state.
 
         Args:
             seed (int, optional): Included for compatibility with Stable-Baselines3.
+            options (Dict[str, Any]): Included for compatibility with Stable-Baselines3.
 
         Returns:
             Tuple[np.ndarray, dict]: Initial state and additional reset info.

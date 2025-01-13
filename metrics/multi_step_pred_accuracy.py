@@ -8,7 +8,6 @@ class MultiStepPredictiveAccuracyEvaluator(EvaluationMetric):
     """
     Evaluates the multi-step predictive accuracy of a learned environment against a true environment.
     """
-
     def __init__(
         self, true_env: gym.Env, learned_env: gym.Env, state_bounds: Dict[str, float], 
         num_trajectories: int, trajectory_horizon: int, num_initial_states: int,
