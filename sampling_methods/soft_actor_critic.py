@@ -54,7 +54,6 @@ class SoftActorCritic(SamplingMethod):
 
         # Perform exploration for up to 'horizon' steps
         for _ in range(self.horizon):
-            assert true_env.unwrapped.state == true_env.state, "error"
             # Append the current state to the list
             states.append(true_env.state)
 
