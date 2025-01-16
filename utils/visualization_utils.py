@@ -81,8 +81,8 @@ def plot_state_space_pred_var(
     """
     ## 1. plot uncertainty prediction
     # generate grid
-    pixels_per_axis = 40
-    pixels_per_action = 10
+    pixels_per_axis = 100
+    pixels_per_action = 20
     x = np.linspace(BOUND_SHRINK_FACTOR * state_bounds["min_position"], BOUND_SHRINK_FACTOR * state_bounds["max_position"], pixels_per_axis) # x as horizontal
     v = np.linspace(BOUND_SHRINK_FACTOR * state_bounds["min_velocity"], BOUND_SHRINK_FACTOR * state_bounds["max_velocity"], pixels_per_axis) # v as vertical
     action = np.linspace(state_bounds["min_action"], state_bounds["max_action"], pixels_per_action) # average over action space
@@ -103,8 +103,9 @@ def plot_state_space_pred_var(
     ACTION_DIM = 1
     HIDDEN_SIZE = 72          # Hidden units in the neural network
     DROP_PROB = 0.1           # Dropout probability for the bayesian neural network
+    DEVICE = "cuda"
     # Initialize trained dynamics model and load saved weights
-    bnn_model = MCDropoutBNN(STATE_DIM, ACTION_DIM, hidden_size=HIDDEN_SIZE, drop_prob=DROP_PROB)
+    bnn_model = MCDropoutBNN(STATE_DIM, ACTION_DIM, hidden_size=HIDDEN_SIZE, drop_prob=DROP_PROB, device=DEVICE)
     if num_al_iterations == 0:
         bnn_model.reset_weights()
     else:
@@ -117,15 +118,14 @@ def plot_state_space_pred_var(
     states_batch.to(device)
     actions_batch.to(device)
     _, pred_vars = bnn_model.bayesian_pred(states_batch, actions_batch)
-    var_flat = np.sum(np.log(pred_vars), axis=1) # var summed over dimension [pixels_per_axis^3, 2]
+    var_flat = np.sum(pred_vars, axis=1) # var summed over dimension [pixels_per_axis^3, 2]
     mean_var_flat = var_flat.reshape([pixels_per_axis*pixels_per_axis, pixels_per_action]).mean(axis=1) # average over action [pixels_per_axis^2,]
 
     # plot 2D pointcloud
     plt.figure(figsize=(12, 10))
     X, V = np.meshgrid(x, v) # 2D meshgrid for plot
-    X_flat = X.ravel()
-    V_flat = V.ravel()
-    plt.scatter(X_flat, V_flat, s=6*(mean_var_flat-np.min(mean_var_flat)), c=mean_var_flat, cmap='viridis', alpha=0.9)
+    Z = mean_var_flat.reshape([pixels_per_axis, pixels_per_axis]) # map of uncertainty
+    plt.pcolormesh(X, V, Z, shading='auto', cmap='viridis')
     plt.colorbar(label='uncertainty prediction')
 
     ## 2. plot explored trajectories till current iteration

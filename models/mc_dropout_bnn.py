@@ -5,15 +5,15 @@ from typing import Dict
 class MCDropoutBNN(nn.Module):
     def __init__(
             self, state_dim, action_dim, hidden_size=64, drop_prob=0.5,
-            num_monte_carlo_samples=50, device=None, input_bound:torch.Tensor = torch.Tensor([10.0, 10.0, 1.0])
+            num_monte_carlo_samples=50, device=None, input_bound:torch.Tensor = torch.Tensor([0.9, 2.6, 1.0])
     ):
         """
         BNN Initialization
 
         Args:
             num_monte_carlo_samples: number of samples used for bayesian prediction
-            input_bound: define absolute bounds for input states and actions, for symmetric input
-                         inputs should not exceed this boundary
+            input_bound: define absolute bounds for input states and actions, for input expansion
+                         inputs should ideally stay within the boundary
                          given as [state1, state2, ..., action1, ...]
         """
         super(MCDropoutBNN, self).__init__()
@@ -32,12 +32,14 @@ class MCDropoutBNN(nn.Module):
 
     def forward(self, state, action):
         """
-        augment inputs by constructing symmetric value for each dim
+        expand inputs by constructing symmetric value for each dim
         """
-        x = torch.cat([state, action], dim=1)
-        x_sym = torch.where(x >= 0, self.input_bound - x, -self.input_bound - x)
-        x_aug = torch.cat((x, x_sym), dim=1)
-        return self.model(x_aug)
+        with torch.no_grad():
+            x = torch.cat([state, action], dim=1)
+            x_1 = torch.tanh(2*x/self.input_bound)
+            x_2 = torch.sqrt(1-torch.square(x_1))
+            x_exp = torch.cat((x_1, x_2), dim=1)
+        return self.model(x_exp)
 
     def bayesian_pred(self, state, action):
         """

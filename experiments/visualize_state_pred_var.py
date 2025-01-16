@@ -10,13 +10,13 @@ env = TrueMassSpringDamperEnv(noise_var=0.0)
 HORIZON = 50
 
 state_bounds = env.compute_state_bounds(horizon=HORIZON)
-exp_idx = 2
+exp_idx = 8
 
 plot_state_space_pred_var(
     sampling_method="Random Sampling Shooting",
     experiment=exp_idx,
     repetition=0,
-    num_al_iterations=0,
+    num_al_iterations=5,
     state_bounds=state_bounds,
-    show_plot=False
+    show_plot=True
 )
