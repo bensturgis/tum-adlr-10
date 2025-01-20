@@ -10,6 +10,7 @@ from typing import Dict, Tuple, Any, Union
 
 from models.feedforward_nn import FeedforwardNN
 from models.mc_dropout_bnn import MCDropoutBNN
+from models.laplace_bnn import LaplaceBNN
 
 class MassSpringDamperEnv(gym.Env, ABC):
     """
@@ -291,7 +292,7 @@ class LearnedMassSpringDamperEnv(MassSpringDamperEnv):
         action_tensor = torch.tensor(action, dtype=torch.float32).unsqueeze(0)    # Shape: [1, 1]
 
         # Model-specific prediction logic
-        if isinstance(self.model, MCDropoutBNN):
+        if isinstance(self.model, MCDropoutBNN) or isinstance(self.model, LaplaceBNN):
             # Bayesian model prediction: returns next state and variance
             next_state, pred_var = self.model.bayesian_pred(state_tensor, action_tensor)
             # Update state

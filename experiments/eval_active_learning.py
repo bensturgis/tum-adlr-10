@@ -9,6 +9,7 @@ from metrics.one_step_pred_accuracy import OneStepPredictiveAccuracyEvaluator
 from metrics.multi_step_pred_accuracy import MultiStepPredictiveAccuracyEvaluator
 from models.feedforward_nn import FeedforwardNN
 from models.mc_dropout_bnn import MCDropoutBNN
+from models.laplace_bnn import LaplaceBNN
 from sampling_methods.random_exploration import RandomExploration
 from sampling_methods.random_sampling_shooting import RandomSamplingShooting
 from sampling_methods.soft_actor_critic import SoftActorCritic
@@ -43,8 +44,8 @@ NUM_INITIAL_STATES = 10   # Number of initial states sampled from each trajector
 NUM_PREDICTION_STEPS = 20 # Number of steps for multi-step prediction evaluation (M = 20 in paper)
 
 # Hyperparameters for the active learning evaluation
-NUM_AL_ITERATIONS = 15    # Number of active learning iterations (20 in paper)
-NUM_EVAL_REPETITIONS = 3  # Number of evaluation runs for mean and variance (20 in paper)
+NUM_AL_ITERATIONS = 2    # Number of active learning iterations (20 in paper)
+NUM_EVAL_REPETITIONS = 1  # Number of evaluation runs for mean and variance (20 in paper)
 
 # Initialize the true environment
 true_env = TrueMassSpringDamperEnv(noise_var=0.0)
@@ -56,11 +57,17 @@ state_bounds = true_env.compute_state_bounds(horizon=HORIZON)
 state_dim = true_env.observation_space.shape[0]
 action_dim = true_env.action_space.shape[0]
 # dynamics_model = FeedforwardNN(state_dim, action_dim, hidden_size=HIDDEN_SIZE)
-dynamics_model = MCDropoutBNN(
+# dynamics_model = MCDropoutBNN(
+#     state_dim=state_dim,
+#     action_dim=action_dim,
+#     hidden_size=HIDDEN_SIZE,
+#     drop_prob=DROP_PROB,
+#     device=DEVICE,
+# )
+dynamics_model = LaplaceBNN(
     state_dim=state_dim,
     action_dim=action_dim,
     hidden_size=HIDDEN_SIZE,
-    drop_prob=DROP_PROB,
     device=DEVICE,
 )
 learned_env = LearnedMassSpringDamperEnv(model=dynamics_model)
@@ -77,7 +84,7 @@ soft_actor_critic = SoftActorCritic(
     horizon=HORIZON, 
     total_timesteps=TOTAL_TIMESTEPS
 )
-sampling_methods = [soft_actor_critic, random_exploration]
+sampling_methods = [random_sampling_shooting]
 
 # Initialize the evluation metrics 
 one_step_pred_acc_eval = OneStepPredictiveAccuracyEvaluator(

@@ -89,6 +89,9 @@ def train_model(
         mean_train_loss = epoch_train_loss / len(train_dataloader.dataset)
         epoch_losses[0].append(mean_train_loss)
 
+        if hasattr(model, 'fit_posterior'):
+            model.fit_posterior(train_dataloader)
+
         # If a test DataLoader is provided, evaluate the model on the test set
         if test_dataloader is not None:
             model.eval()  # Set model to evaluation mode
