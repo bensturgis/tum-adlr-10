@@ -6,3 +6,4 @@ matplotlib
 tqdm
 gym
 stable-baselines3
+laplace-torch

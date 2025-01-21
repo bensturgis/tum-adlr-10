@@ -1,45 +1,38 @@
+from laplace import Laplace
 import torch
 import torch.nn as nn
-from laplace import Laplace
 from torch.utils.data import DataLoader, TensorDataset
 
-class LaplaceBNN(nn.Module):
+from models.bnn import BNN
+
+class LaplaceBNN(BNN):
+    """
+    Bayesian neural network using Laplace approximation.
+    """
     def __init__(
-            self, state_dim, action_dim, hidden_size=64,
-            device=None, input_bound: torch.Tensor = torch.Tensor([0.9, 2.6, 1.0])
-    ):
+            self, state_dim: int, action_dim: int, hidden_size: int = 64,
+            device: torch.device = torch.device('cpu'),
+            input_bounds: torch.Tensor = torch.Tensor([0.9, 2.6, 1.0])
+    ) -> None:
         """
-        Bayesian Neural Network Initialization using Laplace Approximation.
+        Initialize Laplace Approximation Bayesian Neural Network.
 
         Args:
-            num_monte_carlo_samples: number of samples used for posterior prediction
-            input_bound: define absolute bounds for input states and actions, for input expansion
-                         inputs should ideally stay within the boundary
-                         given as [state1, state2, ..., action1, ...]
+            hidden_size (int): Number of neurons in the hidden layer. Defaults to 64.
         """
-        super(LaplaceBNN, self).__init__()
-        self.device = device
+        super().__init__(
+            state_dim=state_dim, action_dim=action_dim,
+            device=device, input_bounds=input_bounds
+        )
         self.model = nn.Sequential(
-            nn.Linear((state_dim + action_dim) * 2, hidden_size),  # augment dim for symmetric inputs
+            # Augment input dimension for feature expansion
+            nn.Linear((self.state_dim + self.action_dim) * 2, hidden_size), 
             nn.ReLU(inplace=True),
             nn.Linear(hidden_size, state_dim),
         )
-        if self.device is not None:
-            self.to(self.device)
-
-        self.name = "Laplace Approximation Bayesian Neural Network"
-        self.input_bound = input_bound.to(self.device)
+        self.to(self.device)
         self.laplace_approximation = None
-
-    def forward(self, state, action):
-        """
-        expand inputs by constructing symmetric value for each dim
-        """
-        x = torch.cat([state, action], dim=1)
-        x_1 = torch.tanh(2*x/self.input_bound)
-        x_2 = torch.sqrt(1-torch.square(x_1))
-        x_exp = torch.cat((x_1, x_2), dim=1)
-        return self.model(x_exp)
+        self.name = "Laplace Approximation Bayesian Neural Network"
 
     def fit_posterior(self, train_loader):
         """
@@ -59,7 +52,7 @@ class LaplaceBNN(nn.Module):
             x = torch.cat([state_batch, action_batch], dim=1)
             
             # Feature expansion
-            x_1 = torch.tanh(2 * x / self.input_bound)
+            x_1 = torch.tanh(2 * x / self.input_bounds)
             x_2 = torch.sqrt(1 - torch.square(x_1))
             x_exp = torch.cat((x_1, x_2), dim=1)
             
@@ -100,7 +93,7 @@ class LaplaceBNN(nn.Module):
             action = action.to(self.device)
         with torch.no_grad():
             x = torch.cat([state, action], dim=1)
-            x_1 = torch.tanh(2 * x / self.input_bound)
+            x_1 = torch.tanh(2 * x / self.input_bounds)
             x_2 = torch.sqrt(1 - torch.square(x_1))
             x_exp = torch.cat((x_1, x_2), dim=1)
         
@@ -120,27 +113,3 @@ class LaplaceBNN(nn.Module):
         var_pred = torch.cat(var_preds, dim=0).detach().cpu().numpy()
 
         return mean_pred, var_pred
-
-    def reset_weights(self):
-        """
-        Resets the weights of the network.
-        """
-        for layer in self.modules():
-            if hasattr(layer, 'reset_parameters'):
-                layer.reset_parameters()
-
-    def load_state_dict(self, params):
-        params = {k.replace('model.', ''): v.to(self.device) for k, v in params.items()}
-        self.model.load_state_dict(params)
-
-    def params_to_dict(self) -> dict:
-        """
-        Converts hyperparameters into a dictionary.
-        """
-        parameter_dict = {
-            "name": self.name,
-            "architecture": [
-                str(layer) for layer in self.model
-            ]
-        }
-        return parameter_dict
