@@ -1,8 +1,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
+from models.laplace_bnn import LaplaceBNN
 from models.mc_dropout_bnn import MCDropoutBNN
 import torch
+from torch.utils.data import TensorDataset, DataLoader
 from typing import Dict
 
 BOUND_SHRINK_FACTOR = 0.8
@@ -64,7 +66,7 @@ def plot_state_space_trajectory(
 
 def plot_state_space_pred_var(
     experiment: int, sampling_method: str, num_al_iterations: int, state_bounds: Dict[str, float],
-    repetition: int = 0, show_plot: bool = True
+    repetition: int = 0, show_plot: bool = True, model = None
 ):
     """
     Plot the predictive variance over all state and action space for a Bayesian Model.
@@ -98,26 +100,41 @@ def plot_state_space_pred_var(
         model_weights_file = experiment_path / "training_results" / sampling_method / f"repetition_{repetition}" / f"iteration_{num_al_iterations}" / "model_weights.pt"
         if not model_weights_file.exists():
             raise FileNotFoundError(f"Weights file not found at: {model_weights_file}")
-    # Hyperparameters for neural network
-    STATE_DIM = 2
-    ACTION_DIM = 1
-    HIDDEN_SIZE = 72          # Hidden units in the neural network
-    DROP_PROB = 0.1           # Dropout probability for the bayesian neural network
-    DEVICE = "cuda"
-    # Initialize trained dynamics model and load saved weights
-    bnn_model = MCDropoutBNN(STATE_DIM, ACTION_DIM, hidden_size=HIDDEN_SIZE, drop_prob=DROP_PROB, device=DEVICE)
+
     if num_al_iterations == 0:
-        bnn_model.reset_weights()
+        model.reset_weights()
     else:
-        bnn_model.load_state_dict(torch.load(model_weights_file))
+        model.load_state_dict(torch.load(model_weights_file))
+
+    # load train dataset for LA BNN, and fit on the dataset.
+    if isinstance(model, LaplaceBNN):
+        # Load the trajectory file (shape: (num_al_iterations, horizon, state_dim + action_dim + state_dim))
+        base_path = Path(__file__).parent.parent / "experiments" / "active_learning_evaluations"
+        experiment_path = base_path / f"experiment_{experiment}"
+        trajectory_file = experiment_path / "state_trajectories" / sampling_method / f"repetition_{repetition}.npy"
+        trajectories = np.load(trajectory_file)
+        # extract dataset from trajectories
+        trajectories_till_now = trajectories[:num_al_iterations].reshape(-1, trajectories.shape[-1])  # Shape: (num_al_iterations * horizon, total_dim)
+        states = trajectories_till_now[:, :model.state_dim]  # First `state_dim` columns
+        actions = trajectories_till_now[:, model.state_dim: model.state_dim + model.action_dim]  # second `action_dim` columns
+        next_states = trajectories_till_now[:, model.state_dim + model.action_dim:]  # Last `state_dim` columns
+        # Convert to PyTorch tensors
+        states_tensor = torch.tensor(states, dtype=torch.float32)
+        actions_tensor = torch.tensor(actions, dtype=torch.float32)
+        next_states_tensor = torch.tensor(next_states, dtype=torch.float32)
+
+        # Create TensorDataset
+        dataset = TensorDataset(states_tensor, actions_tensor, next_states_tensor)
+        dataloader = DataLoader(dataset, batch_size=50, shuffle=True)
+        model.fit_posterior(dataloader)
 
     # calculate predictive variance for each point
     states_batch = torch.tensor(np.column_stack((X_flat, V_flat)), dtype=torch.float32)  # [batch_size, state_dim]
     actions_batch = torch.tensor(A_flat[:, np.newaxis], dtype=torch.float32)  # [batch_size, action_dim]
-    device = next(bnn_model.parameters()).device
+    device = next(model.parameters()).device
     states_batch.to(device)
     actions_batch.to(device)
-    _, pred_vars = bnn_model.bayesian_pred(states_batch, actions_batch)
+    _, pred_vars = model.bayesian_pred(states_batch, actions_batch)
     var_flat = np.sum(pred_vars, axis=1) # var summed over dimension [pixels_per_axis^3, 2]
     mean_var_flat = var_flat.reshape([pixels_per_axis*pixels_per_axis, pixels_per_action]).mean(axis=1) # average over action [pixels_per_axis^2,]
 
@@ -135,7 +152,6 @@ def plot_state_space_pred_var(
     trajectory_file = experiment_path / "state_trajectories" / sampling_method / f"repetition_{repetition}.npy"
     if not trajectory_file.exists():
         raise FileNotFoundError(f"Trajectory file not found at: {trajectory_file}")
-
     # Load the trajectory file (shape: (num_al_iterations, horizon, state_dim))
     trajectories = np.load(trajectory_file)
 

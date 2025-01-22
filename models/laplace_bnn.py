@@ -40,35 +40,23 @@ class LaplaceBNN(BNN):
         Args:
             train_loader: DataLoader providing training data.
         """
-        expanded_inputs = []
-        targets = []
-        for state_batch, action_batch, next_state_batch in train_loader:
-            # move data to device
-            state_batch = state_batch.to(self.device)
-            action_batch = action_batch.to(self.device)
-            next_state_batch = next_state_batch.to(self.device)
+        # move data to device
+        state_batch = train_loader.dataset.tensors[0].to(self.device)
+        action_batch = train_loader.dataset.tensors[1].to(self.device)
+        next_state_batch = train_loader.dataset.tensors[2].to(self.device)
 
-            # Combine state and action
-            x = torch.cat([state_batch, action_batch], dim=1)
-            
-            # Feature expansion
-            x_1 = torch.tanh(2 * x / self.input_bounds)
-            x_2 = torch.sqrt(1 - torch.square(x_1))
-            x_exp = torch.cat((x_1, x_2), dim=1)
-            
-            # Append expanded inputs and targets
-            expanded_inputs.append(x_exp)
-            targets.append(next_state_batch)
+        # Feature expansion
+        x = torch.cat([state_batch, action_batch], dim=1)
+        x_1 = torch.tanh(2 * x / self.input_bounds)
+        x_2 = torch.sqrt(1 - torch.square(x_1))
+        x_exp = torch.cat((x_1, x_2), dim=1)
 
-        # Concatenate all batches and create new DataLoader
-        expanded_inputs = torch.cat(expanded_inputs, dim=0)
-        targets = torch.cat(targets, dim=0)
-        new_dataset = TensorDataset(expanded_inputs, targets)
-        new_dataloader = DataLoader(new_dataset, batch_size=train_loader.batch_size, shuffle=True)
+        new_dataset = TensorDataset(x_exp, next_state_batch)
+        new_dataloader = DataLoader(new_dataset, batch_size=train_loader.batch_size)
         
         # create approximator and fit posterior
         self.laplace_approximation = Laplace(
-            self.model, likelihood="regression", subset_of_weights="all", hessian_structure="diag"
+            self.model, likelihood="regression", subset_of_weights="last_layer", hessian_structure="diag"
         )
         self.laplace_approximation.fit(new_dataloader)
 

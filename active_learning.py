@@ -80,6 +80,7 @@ class ActiveLearningEvaluator():
 
         # Get the state dimensionality
         state_dim = self.true_env.observation_space.shape[0]
+        action_dim = self.true_env.action_space.shape[0]
 
         # Extract the horizon from the sampling methods
         horizon = self.sampling_methods[0].horizon
@@ -113,11 +114,11 @@ class ActiveLearningEvaluator():
                 training_results[sampling_method.name][repetition] = {}
 
                 # Initialize the numpy array for saving state trajectories for all iterations in the repetition
-                # Shape: (num_al_iterations, horizon, state_dim)
+                # Shape: (num_al_iterations, horizon, state_dim + action_dim + state_dim)
                 state_trajectories[sampling_method.name][repetition] = np.zeros(
-                    (self.num_al_iterations, sampling_method.horizon, state_dim)
+                    (self.num_al_iterations, sampling_method.horizon, state_dim + action_dim + state_dim)
                 )
-                state_trajectory = total_dataset.tensors[0].numpy()  # shape: (horizon, state_dim)
+                state_trajectory = torch.cat(total_dataset.tensors[:], dim=1).numpy()  # shape: (horizon, state_dim)
                 state_trajectories[sampling_method.name][repetition][0, :, :] = state_trajectory
 
                 # Perform active learning iterations
@@ -166,7 +167,7 @@ class ActiveLearningEvaluator():
                         total_dataset = combine_datasets(total_dataset, new_dataset)
             
                         # Store the newly sampled state trajectory
-                        state_trajectory = new_dataset.tensors[0].numpy()  # shape: (horizon, state_dim)
+                        state_trajectory = torch.cat(new_dataset.tensors[:], dim=1).numpy()  # shape: (horizon, state_dim)
                         state_trajectories[sampling_method.name][repetition][iteration + 1, :, :] = state_trajectory
 
         mean_accuracies = {}
