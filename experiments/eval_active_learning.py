@@ -44,8 +44,8 @@ NUM_INITIAL_STATES = 10   # Number of initial states sampled from each trajector
 NUM_PREDICTION_STEPS = 20 # Number of steps for multi-step prediction evaluation (M = 20 in paper)
 
 # Hyperparameters for the active learning evaluation
-NUM_AL_ITERATIONS = 2    # Number of active learning iterations (20 in paper)
-NUM_EVAL_REPETITIONS = 1  # Number of evaluation runs for mean and variance (20 in paper)
+NUM_AL_ITERATIONS = 20    # Number of active learning iterations (20 in paper)
+NUM_EVAL_REPETITIONS = 2  # Number of evaluation runs for mean and variance (20 in paper)
 
 # Initialize the true environment
 true_env = TrueMassSpringDamperEnv(noise_var=0.0)
@@ -84,7 +84,7 @@ soft_actor_critic = SoftActorCritic(
     horizon=HORIZON, 
     total_timesteps=TOTAL_TIMESTEPS
 )
-sampling_methods = [random_sampling_shooting]
+sampling_methods = [random_exploration, random_sampling_shooting]
 
 # Initialize the evluation metrics 
 one_step_pred_acc_eval = OneStepPredictiveAccuracyEvaluator(

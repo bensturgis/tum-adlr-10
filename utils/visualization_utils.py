@@ -162,6 +162,9 @@ def plot_state_space_pred_var(
             trajectory = trajectories[iteration]  # Shape: (horizon, state_dim)
             # plt.scatter(trajectory[:, 0], trajectory[:, 1], label=f"Iteration {iteration}", s=10)
             plt.plot(trajectory[:, 0], trajectory[:, 1], label=f"Iteration {iteration}")
+    if num_al_iterations < trajectories.shape[0]:
+        trajectory = trajectories[num_al_iterations]
+        plt.plot(trajectory[:, 0], trajectory[:, 1], linestyle="--", alpha=0.6, label=f"Iteration {num_al_iterations}")
 
     plt.xlabel('Position')
     plt.ylabel('Velocity')

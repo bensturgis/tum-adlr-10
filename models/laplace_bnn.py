@@ -60,7 +60,7 @@ class LaplaceBNN(BNN):
         )
         self.laplace_approximation.fit(new_dataloader)
 
-    def bayesian_pred(self, state, action, batch_size=500):
+    def bayesian_pred(self, state, action, batch_size=10000000):
         """
         Performs Bayesian prediction to obtain mean and variance.
 
