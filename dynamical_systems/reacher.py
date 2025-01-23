@@ -1,0 +1,244 @@
+from abc import ABC, abstractmethod
+import numpy as np
+import gymnasium as gym
+from gymnasium import spaces
+import pygame
+from typing import Dict, Tuple, Any, Union
+import torch
+
+# If you have these in your code base:
+from models.feedforward_nn import FeedforwardNN
+from models.mc_dropout_bnn import MCDropoutBNN
+from models.laplace_bnn import LaplaceBNN
+
+class ReacherEnv(gym.Env, ABC):
+    """
+    Abstract base class for a 2-joint Reacher environment whose state is given by
+    s = [cos(theta1), cos(theta2), sin(theta1), sin(theta2), vx, vy].
+    """
+    def __init__(self, link_length: float = 0.5) -> None:
+        """
+        Initialize the Reacher environment.
+
+        Args:
+            link_length (float): Length of each link.
+        """
+        super().__init__()
+        self.name = "Reacher"
+
+        # Environment uses a 6D state as described:
+        # [cos(theta1), cos(theta2), sin(theta1), sin(theta2), vx, vy]
+        self.state = np.zeros(6, dtype=np.float32)
+
+        # Two torques, each in [-0.2, 0.2]
+        torque_limit = 0.2
+        self.action_space = spaces.Box(
+            low=-torque_limit,
+            high=torque_limit,
+            shape=(2,),
+            dtype=np.float32
+        )
+
+        # cos/sin will be in [-1,1] and vx, vy are unbounded
+        self.observation_space = spaces.Box(
+            low=np.array([-1.0, -1.0, -1.0, -1.0, -np.inf, -np.inf], dtype=np.float32),
+            high=np.array([ 1.0,  1.0,  1.0,  1.0,  np.inf,  np.inf], dtype=np.float32),
+            dtype=np.float32
+        )
+
+        # Rendering
+        self.screen = None
+        self.window_width, self.window_height = 500, 500
+
+        # Link lengths
+        self.link_length = link_length
+
+    @abstractmethod
+    def step(
+        self, action: np.ndarray
+    ) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
+        pass
+
+    @abstractmethod
+    def reset(
+        self, seed: int = None, options: Dict[str, Any] = None
+    ) -> Tuple[np.ndarray, Dict]:
+        pass
+
+    def render(self) -> None:
+        """
+        Renders the current state of the reacher using Pygame.
+        """
+        if self.screen is None:
+            pygame.init()
+            self.screen = pygame.display.set_mode((self.window_width, self.window_height))
+            pygame.display.set_caption(self.name)
+
+        self.screen.fill((255, 255, 255))
+
+        # Convert cos/sin to angles
+        cos_t1, cos_t2, sin_t1, sin_t2, _, _ = self.state
+        theta1 = np.arctan2(sin_t1, cos_t1)
+        theta2 = np.arctan2(sin_t2, cos_t2)
+
+        origin = (self.window_width // 2, self.window_height // 2)
+        scale = 100
+
+        # Coordinates second joint (end of link1)
+        x1 = origin[0] + int(self.link_length * np.cos(theta1) * scale)
+        y1 = origin[1] + int(self.link_length * np.sin(theta1) * scale)
+        joint = (x1, y1)
+        # Coordinates end-effector
+        x2 = x1 + int(self.link_length * np.cos(theta1 + theta2) * scale)
+        y2 = y1 + int(self.link_length * np.sin(theta1 + theta2) * scale)
+        end_effector = (x2, y2)
+
+        # Draw links
+        pygame.draw.line(self.screen, (0, 0, 0), origin, joint, 4)
+        pygame.draw.line(self.screen, (0, 0, 0), joint, end_effector, 4)
+        # Draw joints and end-effector
+        pygame.draw.circle(self.screen, (255, 0, 0), origin, 5)
+        pygame.draw.circle(self.screen, (0, 255, 0), joint, 5)
+        pygame.draw.circle(self.screen, (0, 0, 255), end_effector, 5)
+
+        pygame.display.flip()
+
+    def close(self) -> None:
+        """
+        Closes the rendering window and releases pygame resources.
+        """
+        if self.screen is not None:
+            pygame.quit()
+            self.screen = None
+
+    @abstractmethod
+    def params_to_dict(self) -> Dict[str, Any]:
+        """
+        Converts hyperparameters into a dictionary.
+        """
+        pass
+
+
+class TrueReacherEnv(ReacherEnv):
+    """
+    The "true" reacher environment, simulating the real system dynamics.
+
+    This environment models the physical reacher with exact parameters, 
+    serving as the ground truth for comparison with the learned environment.
+    """
+    def __init__(
+        self, link_length: float = 0.5, time_step: float = 0.01, noise_var: float = 0.0
+    ) -> None:
+        """
+        Initialize the "true" reacher environment.
+
+        Args:
+            time_step (float): Discretization time step.
+            noise_var (float): Variance of Gaussian noise added to the state.
+        """
+        super().__init__(link_length=link_length)
+        self.time_step = time_step
+        self.noise_var = noise_var
+
+        # Keep track of angular velocities [dtheta1, dtheta2] to simplify calculations
+        # of dynamics
+        self.dtheta = np.zeros(2, dtype=np.float32)
+
+    def step(
+        self, action: np.array
+    ) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
+        # Parse the old angles
+        cos_t1, cos_t2, sin_t1, sin_t2, vx_old, vy_old = self.state
+        theta1_old = np.arctan2(sin_t1, cos_t1)
+        theta2_old = np.arctan2(sin_t2, cos_t2)
+
+        dtheta1_old, dtheta2_old = self.dtheta
+
+        # Simple torque integration: 
+        #    dtheta_i_new = dtheta_i_old + dt * tau_i
+        #    theta_i_new  = theta_i_old  + dt * dtheta_i_new
+        tau1, tau2 = np.clip(action, self.action_space.low, self.action_space.high)
+        dtheta1_new = dtheta1_old + self.time_step * tau1
+        dtheta2_new = dtheta2_old + self.time_step * tau2
+        self.dtheta = np.array([dtheta1_new, dtheta2_new], dtype=np.float32)
+        theta1_new = theta1_old + self.time_step * dtheta1_new
+        theta2_new = theta2_old + self.time_step * dtheta2_new
+
+        # Recompute cos/sin
+        cos_t1_new = np.cos(theta1_new)
+        sin_t1_new = np.sin(theta1_new)
+        cos_t2_new = np.cos(theta2_new)
+        sin_t2_new = np.sin(theta2_new)
+
+        # Recompute new (vx, vy) from forward kinematics: 
+        #    [vx, vy]^T = J(theta_new) * [dtheta1_new, dtheta2_new]^T
+        J_new = self.compute_jacobian(theta1_new, theta2_new)
+        v_new = J_new.dot(np.array([dtheta1_new, dtheta2_new], dtype=np.float32))
+        vx_new, vy_new = v_new
+
+        # Update the state
+        self.state = np.array([
+            cos_t1_new, cos_t2_new,
+            sin_t1_new, sin_t2_new,
+            vx_new, vy_new
+        ], dtype=np.float32)
+
+        # Reward is not needed for the true system
+        reward = 0.0
+
+        # No termination and truncation conditions defined
+        terminated = False
+        truncated = False
+
+        return self.state, reward, terminated, truncated, {}
+
+    def compute_jacobian(self, theta1: float, theta2: float) -> np.ndarray:
+        """
+        Computes the Jacobian matrix of the end-effector position 
+          x = l1*cos(t1) + l2*cos(t1 + t2)
+          y = l1*sin(t1) + l2*sin(t1 + t2)
+        with respect to the joint angles.
+
+        Args:
+            theta1 (float): Angle of the first joint (in radians).
+            theta2 (float): Angle of the second joint (in radians).
+
+        Returns:
+            np.ndarray: A 2x2 Jacobian matrix where:
+                J = [[dx/dt1, dx/dt2],
+                    [dy/dt1, dy/dt2]]
+        """
+        dxdt1 = -self.link_length * np.sin(theta1) - self.link_length * np.sin(theta1 + theta2)
+        dxdt2 = -self.link_length * np.sin(theta1 + theta2)
+        dydt1 =  self.link_length * np.cos(theta1) + self.link_length * np.cos(theta1 + theta2)
+        dydt2 =  self.link_length * np.cos(theta1 + theta2)
+        return np.array([[dxdt1, dxdt2],
+                         [dydt1, dydt2]], dtype=np.float32)
+
+    def reset(
+        self, seed: int = None, options: Dict[str, Any] = None
+    ) -> Tuple[np.ndarray, Dict]:
+        """
+        Resets the environment to its initial state.
+
+        Args:
+            seed (int, optional): Included for compatibility with Stable-Baselines3.
+            options (Dict[str, Any]): Included for compatibility with Stable-Baselines3.
+
+        Returns:
+            Tuple[np.ndarray, dict]: Initial state and additional reset info.
+        """
+        self.state = np.zeros(6, dtype=np.float32)
+        self.dtheta = np.zeros(2, dtype=np.float32)
+        return self.state, {}
+    
+    def params_to_dict(self) -> Dict[str, str]:
+        """
+        Converts hyperparameters into a dictionary.
+        """
+        parameter_dict = {
+            "name": self.name,
+            "link_length": self.link_length,
+            "time_step": self.time_step
+        }
+        return parameter_dict
