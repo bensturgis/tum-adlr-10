@@ -84,7 +84,7 @@ soft_actor_critic = SoftActorCritic(
     horizon=HORIZON, 
     total_timesteps=TOTAL_TIMESTEPS
 )
-sampling_methods = [random_exploration, random_sampling_shooting]
+sampling_methods = [random_sampling_shooting]
 
 # Initialize the evluation metrics 
 one_step_pred_acc_eval = OneStepPredictiveAccuracyEvaluator(
