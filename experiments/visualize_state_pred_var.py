@@ -21,14 +21,14 @@ DEVICE = "cuda"
 # Initialize trained dynamics model and load saved weights
 # bnn_model = MCDropoutBNN(STATE_DIM, ACTION_DIM, hidden_size=HIDDEN_SIZE, drop_prob=DROP_PROB, device=DEVICE)
 bnn_model = LaplaceBNN(STATE_DIM, ACTION_DIM, hidden_size=HIDDEN_SIZE, device=DEVICE)
-exp_idx = 13
-num_iter = 20
-
-for num_iter in range(4,22,4):
+exp_idx = 16
+num_iter = 5
+#"Random Sampling Shooting"
+for num_iter in range(1,6,1):
     plot_state_space_pred_var(
-        sampling_method="Random Sampling Shooting",
+        sampling_method="Soft Actor Critic",
         experiment=exp_idx,
-        repetition=4,
+        repetition=0,
         num_al_iterations=num_iter,
         state_bounds=state_bounds,
         model=bnn_model,
