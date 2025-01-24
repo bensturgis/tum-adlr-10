@@ -17,20 +17,24 @@ class MassSpringDamperEnv(gym.Env, ABC):
     Abstract base class defining the structure for implementing a Gym-compatible
     mass-spring-damper system.
     """
-    def __init__(self):
+    def __init__(self) -> None:
         """
         Initialize the mass-spring-damper environment.
         """
         super().__init__()
-
         self.name = "Mass-Spring-Damper System"
 
         # State: [position, velocity]
-        self.state = np.array([0.0, 0.0], dtype=np.float32)
+        self.state = np.zeros(2, dtype=np.float32)
 
         # Action space: Force input constrained to [-input_limit, input_limit]
-        input_limit = 1.0
-        self.action_space = spaces.Box(low=-input_limit, high=input_limit, shape=(1,), dtype=np.float32)
+        force_limit = 1.0
+        self.action_space = spaces.Box(
+            low=-force_limit,
+            high=force_limit,
+            shape=(1,),
+            dtype=np.float32
+        )
 
         # Observation space: State variables [position, velocity] with unbounded range
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(2,), dtype=np.float32)
@@ -42,10 +46,14 @@ class MassSpringDamperEnv(gym.Env, ABC):
         self.spring_origin = self.initial_mass_pos - 200 # Fixed anchor point of spring
 
     @abstractmethod
-    def step(self, action: np.array) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
-        pass    
+    def step(
+        self, action: np.ndarray
+    ) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
+        pass
 
-    def reset(self, seed: int = None, options: Dict[str, Any] = None) -> Tuple[np.ndarray, Dict]:
+    def reset(
+        self, seed: int = None, options: Dict[str, Any] = None
+    ) -> Tuple[np.ndarray, Dict]:
         """
         Resets the environment to its initial state.
 
@@ -56,18 +64,18 @@ class MassSpringDamperEnv(gym.Env, ABC):
         Returns:
             Tuple[np.ndarray, dict]: Initial state and additional reset info.
         """
-        self.state = np.array([0.0, 0.0], dtype=np.float32)
+        self.state = np.zeros(2, dtype=np.float32)
         return self.state, {}
     
-    def render(self):
+    def render(self) -> None:
         """
-        Renders the current state of the mass-spring-damper system using pygame.
+        Renders the current state of the mass-spring-damper system using Pygame.
         """
         # Initialize the pygame screen if not already set
         if self.screen is None:
             pygame.init()
-            self.screen = pygame.display.set_mode((self.width, self.height))
-            pygame.display.set_caption("Mass-Spring-Damper System")
+            self.screen = pygame.display.set_mode((self.window_width, self.window_height))
+            pygame.display.set_caption(self.name)
 
         self.screen.fill((255, 255, 255))
 
@@ -76,12 +84,12 @@ class MassSpringDamperEnv(gym.Env, ABC):
 
         # Draw the spring
         pygame.draw.line(self.screen, (0, 0, 0), 
-                         (self.spring_origin, self.height // 2 - 20),
-                         (self.spring_origin, self.height // 2 + 20),
+                         (self.spring_origin, self.window_height // 2 - 20),
+                         (self.spring_origin, self.window_height // 2 + 20),
                          4)
         pygame.draw.line(self.screen, (0, 0, 0),
-                         (self.spring_origin, self.height // 2),
-                         (mass_pos, self.height // 2), 
+                         (self.spring_origin, self.window_height // 2),
+                         (mass_pos, self.window_height // 2), 
                          2)
 
         # Draw the mass
@@ -90,7 +98,7 @@ class MassSpringDamperEnv(gym.Env, ABC):
 
         pygame.display.flip()
 
-    def close(self):
+    def close(self) -> None:
         """
         Closes the rendering window and releases pygame resources.
         """
@@ -174,22 +182,22 @@ class TrueMassSpringDamperEnv(MassSpringDamperEnv):
     The "true" mass-spring-damper environment, simulating the real system dynamics.
 
     This environment models the physical mass-spring-damper system with exact
-    parameters, serving as the ground truth for comparison with a learned environment.
+    parameters, serving as the ground truth for comparison with the learned environment.
     """
     def __init__(
         self, mass: float = 0.1, stiffness: float = 1.0, damping: float = 0.1,
         time_step: float = 0.01, nonlinear: bool = False, noise_var: float = 0.0,
-    ):
+    ) -> None:
         """
         Initialize the "true" mass-spring-damper environment.
 
         Args:
-            mass (float, optional): Mass of the system.
-            stiffness (float, optional): Spring constant.
-            damping (float, optional): Damping coefficient.
-            time_step (float, optional): Discretization time step.
-            nonlinear (bool, optional): Whether to use a non-linear stiffness model.
-            noise_var (float, optional): Variance of Gaussian noise added to the state.
+            mass (float): Mass of the system.
+            stiffness (float): Spring constant.
+            damping (float): Damping coefficient.
+            time_step (float): Discretization time step.
+            nonlinear (bool): Whether to use a non-linear stiffness model.
+            noise_var (float): Variance of Gaussian noise added to the state.
         """
         super().__init__()
         
@@ -201,7 +209,9 @@ class TrueMassSpringDamperEnv(MassSpringDamperEnv):
         self.nonlinear = nonlinear
         self.noise_var = noise_var
 
-    def step(self, action: np.array) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
+    def step(
+        self, action: np.array
+    ) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
         """
         Perform single step in the mass-spring-damper environment by applying given action
         according to the real system dynamics.
