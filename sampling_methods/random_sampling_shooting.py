@@ -83,8 +83,8 @@ class RandomSamplingShooting(SamplingMethod):
         device = next(learned_env.unwrapped.model.parameters()).device
         
         # Extract state and action dimensions from the environment
-        state_dim = learned_env.observation_space.shape[0]
-        action_dim = learned_env.action_space.shape[0]
+        state_dim = learned_env.state_dim
+        action_dim = learned_env.action_dim
         
         # Sample `self.num_action_seq` random action sequences from the action space
         action_seqs = np.random.uniform(

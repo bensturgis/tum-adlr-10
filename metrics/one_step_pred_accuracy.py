@@ -12,7 +12,7 @@ class OneStepPredictiveAccuracyEvaluator(EvaluationMetric):
 
     def __init__(
             self, true_env: gym.Env, learned_env: gym.Env, num_samples: int,
-            state_bounds: Dict[str, float]
+            sampling_bounds: Dict[str, np.array]
         ) -> None:
         """
         Initializes the one-step evaluator with a true environment, a learned environment, and parameters 
@@ -23,13 +23,17 @@ class OneStepPredictiveAccuracyEvaluator(EvaluationMetric):
             learned_env (gym.Env): The learned environment to be evaluated.
             num_samples (int): The number of samples ((state, action, next_state) pairs) to include 
                                in the test dataset.
-            state_bounds (Dict[str, float]): Dictionary specifying the bounds for state sampling.
+            sampling_bounds (Dict[str, np.array]): Dictionary specifying the bounds for state sampling.
         """
         self.learned_env = learned_env
         self.num_samples = num_samples
-        self.state_bounds = state_bounds
+        self.sampling_bounds = sampling_bounds
         self.name = "One Step Predictive Accuracy"
-        self.dataset = create_test_dataset(true_env=true_env, num_samples=num_samples, state_bounds=state_bounds)
+        self.dataset = create_test_dataset(
+            true_env=true_env,
+            num_samples=num_samples,
+            sampling_bounds=sampling_bounds
+        )
 
     def evaluate(self) -> float:
         """
@@ -72,6 +76,6 @@ class OneStepPredictiveAccuracyEvaluator(EvaluationMetric):
         parameter_dict = {
             "name": self.name,
             "num_samples": self.num_samples,
-            "state_bounds": {k: str(v) for k, v in self.state_bounds.items()},
+            "sampling_bounds": {k: str(v) for k, v in self.sampling_bounds.items()},
         }
         return parameter_dict

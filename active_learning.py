@@ -79,8 +79,8 @@ class ActiveLearningEvaluator():
         training_results = {}
 
         # Get the state dimensionality
-        state_dim = self.true_env.observation_space.shape[0]
-        action_dim = self.true_env.action_space.shape[0]
+        state_dim = self.true_env.state_dim
+        action_dim = self.true_env.action_dim
 
         # Extract the horizon from the sampling methods
         horizon = self.sampling_methods[0].horizon
@@ -90,10 +90,10 @@ class ActiveLearningEvaluator():
             )
         
         # Extract the minimum and maximum state values the environment can reach for the given horizon
-        state_bounds = self.true_env.compute_state_bounds(horizon=horizon)
+        sampling_bounds = self.true_env.define_sampling_bounds(horizon=horizon)
 
         # Create dataset and dataloader of (state, action, next_state) samples from the true environment
-        test_dataset = create_test_dataset(true_env=self.true_env, num_samples=1250, state_bounds=state_bounds)
+        test_dataset = create_test_dataset(true_env=self.true_env, num_samples=1250, sampling_bounds=sampling_bounds)
         test_dataloader = create_dataloader(dataset=test_dataset, batch_size=self.batch_size)
 
         for sampling_method in self.sampling_methods:

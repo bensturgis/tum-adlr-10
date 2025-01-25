@@ -3,13 +3,13 @@ import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
 import pygame
-from typing import Dict, Tuple, Any, Union
+from typing import Any, Dict, List, Tuple, Union
 import torch
 
-# If you have these in your code base:
+from environments.learned_env import LearnedEnv
 from models.feedforward_nn import FeedforwardNN
-from models.mc_dropout_bnn import MCDropoutBNN
-from models.laplace_bnn import LaplaceBNN
+from models.bnn import BNN
+from utils.train_utils import compute_state_bounds
 
 class ReacherEnv(gym.Env, ABC):
     """
@@ -23,12 +23,23 @@ class ReacherEnv(gym.Env, ABC):
         Args:
             link_length (float): Length of each link.
         """
-        super().__init__()
+        gym.Env.__init__(self)
         self.name = "Reacher"
 
         # Environment uses a 6D state as described:
         # [cos(theta1), cos(theta2), sin(theta1), sin(theta2), vx, vy]
         self.state = np.zeros(6, dtype=np.float32)
+        self.state_dim = 6
+
+        # Define the state dimension names
+        self.state_dim_names = {
+            0: "cos(theta1)",
+            1: "cos(theta2)",
+            2: "sin(theta1)",
+            3: "sin(theta2)",
+            4: "velocity_x",
+            5: "velocity_y"
+        }
 
         # Two torques, each in [-0.2, 0.2]
         torque_limit = 0.2
@@ -38,6 +49,7 @@ class ReacherEnv(gym.Env, ABC):
             shape=(2,),
             dtype=np.float32
         )
+        self.action_dim = 2
 
         # cos/sin will be in [-1,1] and vx, vy are unbounded
         self.observation_space = spaces.Box(
@@ -45,6 +57,9 @@ class ReacherEnv(gym.Env, ABC):
             high=np.array([ 1.0,  1.0,  1.0,  1.0,  np.inf,  np.inf], dtype=np.float32),
             dtype=np.float32
         )
+
+        # Input expansion disabled since the magnitude of the state remains approximately constant
+        self.input_expansion = False
 
         # Rendering
         self.screen = None
@@ -130,7 +145,7 @@ class TrueReacherEnv(ReacherEnv):
         self, link_length: float = 0.5, time_step: float = 0.01, noise_var: float = 0.0
     ) -> None:
         """
-        Initialize the "true" reacher environment.
+        Initialize "true" reacher environment.
 
         Args:
             time_step (float): Discretization time step.
@@ -147,11 +162,10 @@ class TrueReacherEnv(ReacherEnv):
     def step(
         self, action: np.array
     ) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
-        # Parse the old angles
-        cos_t1, cos_t2, sin_t1, sin_t2, vx_old, vy_old = self.state
+        # Parse the old angles and angular velocities
+        cos_t1, cos_t2, sin_t1, sin_t2, _, _ = self.state
         theta1_old = np.arctan2(sin_t1, cos_t1)
         theta2_old = np.arctan2(sin_t2, cos_t2)
-
         dtheta1_old, dtheta2_old = self.dtheta
 
         # Simple torque integration: 
@@ -232,6 +246,64 @@ class TrueReacherEnv(ReacherEnv):
         self.dtheta = np.zeros(2, dtype=np.float32)
         return self.state, {}
     
+    def get_state_bounds(self, horizon: int) -> Dict[int, np.array]:
+        """
+        Computes and retrieves state bounds over the specified horizon.
+
+        Args:
+            horizon (int): Number of simulation steps to determine bounds.
+
+        Returns:
+            Dict[int, np.ndarray]: Mapping of state dimension index to their [min, max] bounds.
+        """
+        return compute_state_bounds(env=self, horizon=horizon)
+    
+    def get_action_bounds(self) -> Dict[int, np.array]:
+        """
+        Retrieves the action bounds for each action dimension.
+
+        Returns:
+            Dict[int, np.ndarray]: Dictionary mapping action dimension index to their ,
+                                   [min, max] bounds.
+        """
+        # Extract action bounds for all dimensions
+        action_bounds = {}
+        for dim_idx in range(self.action_dim):
+            action_bounds[dim_idx] = np.array(
+                [self.action_space.low[dim_idx], self.action_space.high[dim_idx]],
+                np.float32
+            )
+
+        return action_bounds
+
+    def define_sampling_bounds(
+        self, horizon: int, bound_shrink_factor: float = 0.5
+    ) -> Dict[str, np.array]:
+        """
+        Defines bounds to sample data for metrics that evaluate performance of the
+        learned environment.
+
+        Args:
+            horizon (int): Number of steps to simulate for each action.
+            bound_shrink_factor (float): Factor by which to shrink maximum/minimum velocity.
+
+        Returns:
+            Dict[int, np.array]: Dictionary mapping state dimension index to their
+                                 sampling bounds.
+        """
+        sampling_bounds = {}
+
+        # Set fixed bounds for angle dimensions
+        for dim_idx in [0, 1, 2, 3]:
+            sampling_bounds[dim_idx] = np.array([-1.0, 1.0], dtype=np.float32)
+
+        # Compute and shrink raw minimum/maximum state bounds for velocity dimension 
+        state_bounds = self.get_state_bounds(horizon=horizon)
+        for dim_idx in [4, 5]:
+            sampling_bounds[dim_idx] = bound_shrink_factor * state_bounds[dim_idx]
+
+        return sampling_bounds
+
     def params_to_dict(self) -> Dict[str, str]:
         """
         Converts hyperparameters into a dictionary.
@@ -242,3 +314,43 @@ class TrueReacherEnv(ReacherEnv):
             "time_step": self.time_step
         }
         return parameter_dict
+
+
+class LearnedReacherEnv(ReacherEnv, LearnedEnv):
+    """
+    A reacher environment with a learned dynamics model.
+    
+    This environment simulates the reacher's dynamics using a learned model
+    (e.g., Bayesian Neural Network or Feedforward Neural Network) to predict
+    the next state and reward.
+    """
+    def __init__(self, model: Union[FeedforwardNN, BNN]) -> None:
+        """
+        Initialize "learned" reacher environment.
+        """
+        LearnedEnv.__init__(self, model=model)
+        ReacherEnv.__init__(self)
+
+    def step(
+        self, action: np.ndarray
+    ) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
+        return LearnedEnv.step(self, action)
+
+    def reset(
+        self, seed: int = None, options: Dict[str, Any] = None
+    ) -> Tuple[np.ndarray, Dict]:
+        """
+        Resets the environment to its initial state.
+
+        Args:
+            seed (int, optional): Included for compatibility with Stable-Baselines3.
+            options (Dict[str, Any]): Included for compatibility with Stable-Baselines3.
+
+        Returns:
+            Tuple[np.ndarray, dict]: Initial state and additional reset info.
+        """
+        self.state = np.zeros(6, dtype=np.float32)
+        return self.state, {}
+
+    def params_to_dict(self) -> Dict[str, str]:
+        return LearnedEnv.params_to_dict(self)

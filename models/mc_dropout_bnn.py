@@ -1,6 +1,7 @@
+import numpy as np
 import torch
 import torch.nn as nn
-from typing import Tuple
+from typing import Dict, Tuple
 
 from models.bnn import BNN
 
@@ -9,9 +10,11 @@ class MCDropoutBNN(BNN):
     Bayesian neural network using Monte Carlo Dropout.
     """
     def __init__(
-            self, state_dim: int, action_dim: int, hidden_size: int = 64,
-            drop_prob: float = 0.1, num_monte_carlo_samples: int = 50, device: torch.device = torch.device('cpu'),
-            input_bounds: torch.Tensor = torch.Tensor([0.9, 2.6, 1.0])
+            self, state_dim: int, action_dim: int, input_expansion: bool,
+            state_bounds: Dict[int, np.array], action_bounds: Dict[int, np.array],
+            hidden_size: int = 64, drop_prob: float = 0.1,
+            num_monte_carlo_samples: int = 50,
+            device: torch.device = torch.device('cpu'),
     ) -> None:
         """
         Initialize Monte-Carlo Dropout Bayesian Neural Network.
@@ -23,12 +26,16 @@ class MCDropoutBNN(BNN):
                 prediction. Defaults to 50.
         """
         super().__init__(
-            state_dim=state_dim, action_dim=action_dim,
-            device=device, input_bounds=input_bounds
+            state_dim=state_dim, action_dim=action_dim, device=device,
+            input_expansion=input_expansion, state_bounds=state_bounds,
+            action_bounds=action_bounds
         )
+        input_dim = self.state_dim + self.action_dim
+        # Augment input dimension for feature expansion
+        if self.input_expansion:
+            input_dim *= 2 
         self.model = nn.Sequential(
-            # Augment input dimension for feature expansion
-            nn.Linear((state_dim + action_dim) * 2, hidden_size), 
+            nn.Linear(input_dim, hidden_size), 
             nn.ReLU(inplace=True),
             nn.Dropout(drop_prob),
             nn.Linear(hidden_size, state_dim),

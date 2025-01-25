@@ -4,7 +4,8 @@ sys.path.append(os.path.abspath("."))
 
 # Import modules and classes
 from active_learning import ActiveLearningEvaluator
-from dynamical_systems.mass_spring_damper_system import TrueMassSpringDamperEnv, LearnedMassSpringDamperEnv
+from environments.mass_spring_damper_system import TrueMassSpringDamperEnv, LearnedMassSpringDamperEnv
+from environments.reacher import TrueReacherEnv, LearnedReacherEnv
 from metrics.one_step_pred_accuracy import OneStepPredictiveAccuracyEvaluator
 from metrics.multi_step_pred_accuracy import MultiStepPredictiveAccuracyEvaluator
 from models.feedforward_nn import FeedforwardNN
@@ -49,17 +50,32 @@ NUM_EVAL_REPETITIONS = 2  # Number of evaluation runs for mean and variance (20 
 
 # Initialize the true environment
 true_env = TrueMassSpringDamperEnv(noise_var=0.0)
+# true_env = TrueReacherEnv()
 
-# Extract the minimum and maximum state values the environment can reach for the given horizon
-state_bounds = true_env.compute_state_bounds(horizon=HORIZON)
+# Get state and action bounds for the dynamical system over the specified horizon
+# to perform input expansion if necessary and keep magnitude of the input constant
+state_bounds = true_env.get_state_bounds(horizon=HORIZON)
+actions_bounds = true_env.get_action_bounds()
+
+# Extract state and action dimension
+state_dim = true_env.state_dim
+action_dim = true_env.action_dim
+
+# Flag to enable or disable input expansion
+input_expansion = true_env.input_expansion
 
 # Set up the dynamics model and learned environment
-state_dim = true_env.observation_space.shape[0]
-action_dim = true_env.action_space.shape[0]
-# dynamics_model = FeedforwardNN(state_dim, action_dim, hidden_size=HIDDEN_SIZE)
+# dynamics_model = FeedforwardNN(
+#     state_dim=state_dim,
+#     action_dim=action_dim,
+#     hidden_size=HIDDEN_SIZE
+# )
 # dynamics_model = MCDropoutBNN(
 #     state_dim=state_dim,
 #     action_dim=action_dim,
+#     input_expansion=true_env.input_expansion,
+#     state_bounds=state_bounds,
+#     action_bounds=actions_bounds,
 #     hidden_size=HIDDEN_SIZE,
 #     drop_prob=DROP_PROB,
 #     device=DEVICE,
@@ -67,10 +83,14 @@ action_dim = true_env.action_space.shape[0]
 dynamics_model = LaplaceBNN(
     state_dim=state_dim,
     action_dim=action_dim,
+    input_expansion=true_env.input_expansion,
+    state_bounds=state_bounds,
+    action_bounds=actions_bounds,
     hidden_size=HIDDEN_SIZE,
     device=DEVICE,
 )
 learned_env = LearnedMassSpringDamperEnv(model=dynamics_model)
+# learned_env = LearnedReacherEnv(model=dynamics_model)
 
 # Initialize the sampling methods
 random_exploration = RandomExploration(horizon=HORIZON)
@@ -84,20 +104,23 @@ soft_actor_critic = SoftActorCritic(
     horizon=HORIZON, 
     total_timesteps=TOTAL_TIMESTEPS
 )
-sampling_methods = [random_exploration, random_sampling_shooting]
+sampling_methods = [random_exploration]
+
+# Extract the minimum and maximum state bounds for sampling data to evaluate
+# the performance of the learned model 
+sampling_bounds = true_env.define_sampling_bounds(horizon=HORIZON)
 
 # Initialize the evluation metrics 
 one_step_pred_acc_eval = OneStepPredictiveAccuracyEvaluator(
     true_env=true_env,
     learned_env=learned_env,
-    state_bounds=state_bounds,
+    sampling_bounds=sampling_bounds,
     num_samples=NUM_SAMPLES,
-)
-    
+) 
 multi_step_pred_acc_eval = MultiStepPredictiveAccuracyEvaluator(
     true_env=true_env,
     learned_env=learned_env,
-    state_bounds=state_bounds,
+    sampling_bounds=sampling_bounds,
     num_trajectories=NUM_TRAJECTORIES,
     trajectory_horizon=TRAJCETORY_LENGTH,
     num_initial_states=NUM_INITIAL_STATES,

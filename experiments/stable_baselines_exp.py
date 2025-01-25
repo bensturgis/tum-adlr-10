@@ -2,7 +2,7 @@ import sys
 import os
 sys.path.append(os.path.abspath("."))
 
-from dynamical_systems.mass_spring_damper_system import TrueMassSpringDamperEnv, LearnedMassSpringDamperEnv
+from environments.mass_spring_damper_system import TrueMassSpringDamperEnv, LearnedMassSpringDamperEnv
 from models.mc_dropout_bnn import MCDropoutBNN
 
 from stable_baselines3.common.env_checker import check_env
@@ -18,7 +18,7 @@ true_env = TrueMassSpringDamperEnv()
 check_env(true_env, warn=True)
 
 # Set up the dynamics model and learned environment
-state_dim = true_env.observation_space.shape[0]
+state_dim = true_env.state_dim
 action_dim = true_env.action_space.shape[0]
 # dynamics_model = FeedforwardNN(state_dim, action_dim, hidden_size=HIDDEN_SIZE)
 dynamics_model = MCDropoutBNN(

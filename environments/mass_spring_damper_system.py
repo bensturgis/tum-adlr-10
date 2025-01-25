@@ -3,14 +3,13 @@ import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
 import pygame
-import platform
-import ctypes
 import torch
-from typing import Dict, Tuple, Any, Union
+from typing import Any, Dict, List, Tuple, Union
 
+from environments.learned_env import LearnedEnv
 from models.feedforward_nn import FeedforwardNN
-from models.mc_dropout_bnn import MCDropoutBNN
-from models.laplace_bnn import LaplaceBNN
+from models.bnn import BNN
+from utils.train_utils import compute_state_bounds
 
 class MassSpringDamperEnv(gym.Env, ABC):
     """
@@ -21,11 +20,18 @@ class MassSpringDamperEnv(gym.Env, ABC):
         """
         Initialize the mass-spring-damper environment.
         """
-        super().__init__()
+        gym.Env.__init__(self)
         self.name = "Mass-Spring-Damper System"
 
         # State: [position, velocity]
         self.state = np.zeros(2, dtype=np.float32)
+        self.state_dim = 2
+
+        # Define the state dimension names
+        self.state_dim_names = {
+            0: "position",
+            1: "velocity"
+        }
 
         # Action space: Force input constrained to [-input_limit, input_limit]
         force_limit = 1.0
@@ -35,9 +41,13 @@ class MassSpringDamperEnv(gym.Env, ABC):
             shape=(1,),
             dtype=np.float32
         )
+        self.action_dim = 1
 
         # Observation space: State variables [position, velocity] with unbounded range
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(2,), dtype=np.float32)
+
+        # Ensures the input magnitude to the Bayesian neural network remains constant
+        self.input_expansion = True
 
         # Parameters for rendering environment with pygame
         self.screen = None
@@ -105,70 +115,6 @@ class MassSpringDamperEnv(gym.Env, ABC):
         if self.screen is not None:
             pygame.quit()
             self.screen = None
-
-    def compute_state_bounds(self, horizon: int) -> Dict[str, float]:
-        """
-        Computes the minimum and maximum position and velocity that can be reached
-        within the given horizon by always applying either the maximum or minimum action.
-
-        Args:
-            horizon (int): Number of steps to simulate forward.
-
-        Returns:
-            Dict[str, float]: A dictionary containing the min/max position and velocity keys:
-                            {
-                                "max_position": float,
-                                "min_position": float,
-                                "max_velocity": float,
-                                "min_velocity": float
-                            }
-        """
-        original_state = self.state.copy()
-
-        # Helper function to simulate and track min/max states using a constant action
-        def simulate(action_val):
-            self.reset()
-            min_pos = self.state[0]
-            max_pos = self.state[0]
-            min_vel = self.state[1]
-            max_vel = self.state[1]
-
-            action = np.array([action_val])
-            for _ in range(horizon):
-                next_state, _, _, _, _ = self.step(action)
-                # Update min/max bounds
-                min_pos = min(min_pos, next_state[0])
-                max_pos = max(max_pos, next_state[0])
-                min_vel = min(min_vel, next_state[1])
-                max_vel = max(max_vel, next_state[1])
-            
-            return min_pos, max_pos, min_vel, max_vel
-
-        # Simulate with minimum action
-        min_action = self.action_space.low[0]
-        min_pos_min_act, max_pos_min_act, min_vel_min_act, max_vel_min_act = simulate(min_action)
-
-        # Simulate with maximum action
-        max_action = self.action_space.high[0]
-        min_pos_max_act, max_pos_max_act, min_vel_max_act, max_vel_max_act = simulate(max_action)
-
-        # Combine results
-        overall_min_pos = min(min_pos_min_act, min_pos_max_act)
-        overall_max_pos = max(max_pos_min_act, max_pos_max_act)
-        overall_min_vel = min(min_vel_min_act, min_vel_max_act)
-        overall_max_vel = max(max_vel_min_act, max_vel_max_act)
-
-        # Restore the original state
-        self.state = original_state
-
-        return {
-            "max_position": overall_max_pos,
-            "min_position": overall_min_pos,
-            "max_velocity": overall_max_vel,
-            "min_velocity": overall_min_vel,
-            "max_action": max_action,
-            "min_action": min_action,
-        }
     
     @abstractmethod
     def params_to_dict(self) -> Dict[str, str]:
@@ -250,6 +196,61 @@ class TrueMassSpringDamperEnv(MassSpringDamperEnv):
         truncated = False
 
         return self.state, reward, terminated, truncated, {}
+
+    def get_state_bounds(self, horizon: int) -> Dict[int, np.array]:
+        """
+        Computes and retrieves state bounds over the specified horizon.
+
+        Args:
+            horizon (int): Number of simulation steps to determine bounds.
+
+        Returns:
+            Dict[int, np.ndarray]: Mapping of state dimension index to their [min, max] bounds.
+        """
+        return compute_state_bounds(env=self, horizon=horizon)
+    
+    def get_action_bounds(self) -> Dict[int, np.array]:
+        """
+        Retrieves the action bounds for each action dimension.
+
+        Returns:
+            Dict[int, np.ndarray]: Dictionary mapping action dimension index to their ,
+                                   [min, max] bounds.
+        """
+        # Extract action bounds for all dimensions
+        action_bounds = {}
+        for dim_idx in range(self.action_dim):
+            action_bounds[dim_idx] = np.array(
+                [self.action_space.low[dim_idx], self.action_space.high[dim_idx]],
+                np.float32
+            )
+
+        return action_bounds
+    
+    def define_sampling_bounds(
+        self, horizon: int, bound_shrink_factor: float = 0.5
+    ) -> Dict[int, np.array]:
+        """
+        Defines bounds to sample data for metrics that evaluate performance of the
+        learned environment.
+
+        Args:
+            horizon (int): Number of steps to simulate for each action.
+            bound_shrink_factor (float): Factor by which to shrink maximum/minimum state bounds.
+
+        Returns:
+            Dict[int, np.array]: Dictionary mapping state dimension index to their
+                                 sampling bounds.
+        """
+        # Compute the raw minimum/maximum state bounds
+        state_bounds = self.get_state_bounds(horizon=horizon)
+        
+        sampling_bounds = {}        
+        for dim_idx in range(self.state_dim):
+            # Apply the shrink factor to the minimum/maximum state bounds
+            sampling_bounds[dim_idx] = bound_shrink_factor * state_bounds[dim_idx]
+        
+        return sampling_bounds
     
     def params_to_dict(self) -> Dict[str, str]:
         """
@@ -266,95 +267,24 @@ class TrueMassSpringDamperEnv(MassSpringDamperEnv):
         }
         return parameter_dict
 
-class LearnedMassSpringDamperEnv(MassSpringDamperEnv):
+class LearnedMassSpringDamperEnv(MassSpringDamperEnv, LearnedEnv):
     """
     A mass-spring-damper environment with a learned dynamics model.
-    
-    This environment simulates a system with mass-spring-damper dynamics
-    and uses a learned model (e.g., Bayesian Neural Network or Feedforward Neural Network)
-    to predict the next state and reward.
     """
-    def __init__(self, model: Union[MCDropoutBNN, FeedforwardNN]):
+    def __init__(self, model: Union[FeedforwardNN, BNN]) -> None:
         """
-        Initialize the environment with a learned model.
-
-        Args:
-            model (Union[MCDropoutBNN, FeedforwardNN]): The dynamics model to be used
-                for state prediction. Can be either a Bayesian Neural Network
-                or a standard Feedforward Neural Network.
+        Initialize "learned" mass-spring-damper system.
         """
-        super().__init__()
-        self.model = model
-
-    def step(self, action: np.array) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
-        """
-        Perform single step in the mass-spring-damper environment by applying given action
-        according to learned dynamics.
+        LearnedEnv.__init__(self, model=model)
+        MassSpringDamperEnv.__init__(self)
         
-        Args:
-            action (np.ndarray): Force applied to the system.
 
-        Returns:
-            Tuple[np.ndarray, float, bool, bool, dict]: Next state, reward, termination flag,
-                truncation flag, and additional info.
-        """
-        state_tensor = torch.tensor(self.state, dtype=torch.float32).unsqueeze(0)  # Shape: [1, 2]
-        action_tensor = torch.tensor(action, dtype=torch.float32).unsqueeze(0)    # Shape: [1, 1]
-
-        # Model-specific prediction logic
-        if isinstance(self.model, MCDropoutBNN) or isinstance(self.model, LaplaceBNN):
-            # Bayesian model prediction: returns next state and variance
-            next_state, pred_var = self.model.bayesian_pred(state_tensor, action_tensor)
-            # Update state
-            self.state = next_state.squeeze()
-            info = {"var": pred_var.squeeze()}
-            reward = self.differential_entropy(pred_var.squeeze())
-        elif isinstance(self.model, FeedforwardNN):
-            # Deterministic model prediction: only returns next state
-            next_state = self.model(state_tensor, action_tensor).squeeze(0).detach().numpy()
-            # Update state
-            self.state = next_state.squeeze(0).detach().numpy()
-            reward = 0.0  # No reward for deterministic models
-            info = {}
-        else:
-            raise ValueError(f"Unsupported model type: {type(self.model)}. "
-                             f"Expected MCDropoutBNN or FeedforwardNN.")
-
-        # No termination and truncation conditions defined
-        terminated = False
-        truncated = False
-
-        return self.state, reward, terminated, truncated, info
+    def step(
+        self, action: np.ndarray
+    ) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
+        return LearnedEnv.step(self, action)
     
-    def differential_entropy(self, pred_vars: np.ndarray) -> float:
-        """
-        Compute the differential entropy of a multivariate Gaussian based on variances from
-        bayesian inference.
-        
-        Args:
-            pred_vars (np.ndarray): Predicted variances from bayesian inference of shape [state_dim].
-                                    
-        Returns:
-            float: The computed differential entropy.
-        """
-        
-        # Extract state dimension
-        state_dim = pred_vars.size
-
-        # Constant term for Gaussian differential entropy
-        const = state_dim * np.log(np.sqrt(2 * np.pi * np.e))
-
-        # Differential entropy computation
-        diff_entropy = const + 0.5 * np.sum(np.log(pred_vars))
-
-        return diff_entropy
-            
     def params_to_dict(self) -> Dict[str, str]:
-        """
-        Converts hyperparameters into a dictionary.
-        """
-        parameter_dict = {
-            "name": self.name,
-            "model": self.model.params_to_dict()
-        }
-        return parameter_dict
+        return LearnedEnv.params_to_dict(self)
+        
+    

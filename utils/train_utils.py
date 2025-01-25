@@ -2,7 +2,7 @@ import gymnasium as gym
 import numpy as np
 import torch
 from torch.utils.data import TensorDataset, DataLoader
-from typing import Dict
+from typing import Dict, List, Tuple
 
 def create_dataloader(dataset: TensorDataset, batch_size: int) -> DataLoader:
     """
@@ -38,8 +38,56 @@ def combine_datasets(dataset1: TensorDataset, dataset2: TensorDataset) -> Tensor
     combined_tensors = [torch.cat([t1, t2], dim=0) for t1, t2 in zip(tensors1, tensors2)]
     return TensorDataset(*combined_tensors)
 
+def compute_state_bounds(env: gym.Env, horizon: int) -> Dict[int, np.array]:
+    """
+    Computes the minimum and maximum values for each state dimension over a given horizon
+    by applying constant minimum and maximum actions.
+
+    Args:
+        env (gym.Env): The environment instance.
+        horizon (int): Number of simulation steps to determine bounds.
+
+    Returns:
+        Dict[int, np.ndarray]: A dictionary mapping each state dimension index to a NumPy array
+                                containing its [min, max] values.
+    """
+    def simulate(action: np.ndarray, dim_idx: int) -> Tuple[float, float]:
+        """
+        Simulates the environment with a constant action and tracks min/max for a specific dimension.
+        """ 
+        env.reset()  # Reset to initial state
+        min_value = env.state[dim_idx]
+        max_value = env.state[dim_idx]
+
+        for _ in range(horizon):
+            next_state, _, _, _, _ = env.step(action)  # Apply action
+            # Update bounds
+            min_value = min(min_value, next_state[dim_idx])
+            max_value = max(max_value, next_state[dim_idx])
+        
+        return min_value, max_value
+
+    min_action = env.action_space.low  # Minimum action values
+    max_action = env.action_space.high  # Maximum action values
+    
+    # Initialize bounds with infinities
+    state_bounds = {}
+    
+    for dim_idx, dim_name in env.state_dim_names.items():
+        # Simulate with min and max actions
+        min_val_min_act, max_val_min_act = simulate(min_action, dim_idx)
+        min_val_max_act, max_val_max_act = simulate(max_action, dim_idx)
+        
+        # Determine overall min and max
+        overall_min_val = min(min_val_min_act, min_val_max_act)
+        overall_max_val = max(max_val_min_act, max_val_max_act)
+        
+        state_bounds[dim_idx] = np.array([overall_min_val, overall_max_val], dtype=np.float32)
+
+    return state_bounds
+
 def create_test_dataset(
-    true_env: gym.Env, state_bounds: Dict[str, float], num_samples: int
+    true_env: gym.Env, sampling_bounds: Dict[int, np.array], num_samples: int
 ) -> TensorDataset:
     """
     Samples states and actions from a true environment, computes their next states,
@@ -47,23 +95,27 @@ def create_test_dataset(
 
     Args:
         true_env (gym.Env): The true environment.
-        state_bounds (Dict[str, float]): State bounds a dynamical system can reach within
-                                         a given horizon for state sampling.
+        sampling_bounds (Dict[int, np.array]): Sampling bounds for each state dimension, 
+            specifying [min, max] values.
         num_samples (int): Number of samples to generate.
 
     Returns:
         TensorDataset: A PyTorch dataset containing (state, action, next_state) triples
                        for valid transitions.
     """
-    # Use scaled bounds for sampling states
-    state_low = 0.5 * np.array([state_bounds["min_position"], state_bounds["min_velocity"]])
-    state_high = 0.5 * np.array([state_bounds["max_position"], state_bounds["max_velocity"]])
+    # Initialize arrays to store lower and upper bounds for each state dimension
+    state_low = np.empty(true_env.state_dim)
+    state_high = np.empty(true_env.state_dim)
+
+    # Extract minimum and maximum state bounds for each state dimension
+    for dim_idx in range(true_env.state_dim):
+        state_low[dim_idx], state_high[dim_idx] = sampling_bounds[dim_idx][:]
 
     # Sample states uniformly within the computed range
     sampled_states = np.random.uniform(
         low=state_low,
         high=state_high,
-        size=(num_samples, true_env.observation_space.shape[0])
+        size=(num_samples, true_env.state_dim)
     )
     
     # Sample actions from the environment's action space

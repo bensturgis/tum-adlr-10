@@ -2,7 +2,7 @@ import sys
 import os
 sys.path.append(os.path.abspath("."))
 
-from dynamical_systems.mass_spring_damper_system import TrueMassSpringDamperEnv, LearnedMassSpringDamperEnv
+from environments.mass_spring_damper_system import TrueMassSpringDamperEnv, LearnedMassSpringDamperEnv
 from utils.visualization_utils import plot_state_space_trajectory
 
 # Use same environment and horizon as for the active learning

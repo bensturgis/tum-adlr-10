@@ -1,7 +1,9 @@
 from laplace import Laplace
+import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
+from typing import Dict
 
 from models.bnn import BNN
 
@@ -10,9 +12,9 @@ class LaplaceBNN(BNN):
     Bayesian neural network using Laplace approximation.
     """
     def __init__(
-            self, state_dim: int, action_dim: int, hidden_size: int = 64,
-            device: torch.device = torch.device('cpu'),
-            input_bounds: torch.Tensor = torch.Tensor([0.9, 2.6, 1.0])
+            self, state_dim: int, action_dim: int, input_expansion: bool,
+            state_bounds: Dict[int, np.array], action_bounds: Dict[int, np.array],
+            hidden_size: int = 64, device: torch.device = torch.device('cpu'),
     ) -> None:
         """
         Initialize Laplace Approximation Bayesian Neural Network.
@@ -21,12 +23,16 @@ class LaplaceBNN(BNN):
             hidden_size (int): Number of neurons in the hidden layer. Defaults to 64.
         """
         super().__init__(
-            state_dim=state_dim, action_dim=action_dim,
-            device=device, input_bounds=input_bounds
+            state_dim=state_dim, action_dim=action_dim, device=device,
+            input_expansion=input_expansion, state_bounds=state_bounds,
+            action_bounds=action_bounds
         )
+        input_dim = self.state_dim + self.action_dim
+        # Augment input dimension for feature expansion
+        if self.input_expansion:
+            input_dim *= 2 
         self.model = nn.Sequential(
-            # Augment input dimension for feature expansion
-            nn.Linear((self.state_dim + self.action_dim) * 2, hidden_size), 
+            nn.Linear(input_dim, hidden_size), 
             nn.ReLU(inplace=True),
             nn.Linear(hidden_size, state_dim),
         )
@@ -46,12 +52,11 @@ class LaplaceBNN(BNN):
         next_state_batch = train_loader.dataset.tensors[2].to(self.device)
 
         # Feature expansion
-        x = torch.cat([state_batch, action_batch], dim=1)
-        x_1 = torch.tanh(2 * x / self.input_bounds)
-        x_2 = torch.sqrt(1 - torch.square(x_1))
-        x_exp = torch.cat((x_1, x_2), dim=1)
+        input = torch.cat([state_batch, action_batch], dim=1)
+        if self.input_expansion:
+            input = self.expand_input(input)
 
-        new_dataset = TensorDataset(x_exp, next_state_batch)
+        new_dataset = TensorDataset(input, next_state_batch)
         new_dataloader = DataLoader(new_dataset, batch_size=train_loader.batch_size)
         
         # create approximator and fit posterior
@@ -79,20 +84,20 @@ class LaplaceBNN(BNN):
         if self.device is not None:
             state = state.to(self.device)
             action = action.to(self.device)
-        with torch.no_grad():
-            x = torch.cat([state, action], dim=1)
-            x_1 = torch.tanh(2 * x / self.input_bounds)
-            x_2 = torch.sqrt(1 - torch.square(x_1))
-            x_exp = torch.cat((x_1, x_2), dim=1)
         
+        input = torch.cat([state, action], dim=1)
+        if self.input_expansion:
+            with torch.no_grad():
+                input = self.expand_input(input)
+            
         mean_preds = []
         var_preds = []
         
         # Process inputs in batches
         total_samples = state.size(0)
         for i in range(0, total_samples, batch_size):
-            x_exp_batch = x_exp[i:i+batch_size]
-            mean_batch, var_batch = self.laplace_approximation(x_exp_batch, pred_type="glm")
+            input_batch = input[i:i+batch_size]
+            mean_batch, var_batch = self.laplace_approximation(input_batch, pred_type="glm")
             mean_preds.append(mean_batch)
             var_preds.append(var_batch.diagonal(dim1=-2, dim2=-1))
 

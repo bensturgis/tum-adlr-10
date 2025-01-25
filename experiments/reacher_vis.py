@@ -6,7 +6,7 @@ import numpy as np
 import pygame
 import matplotlib.pyplot as plt
 
-from dynamical_systems.reacher import TrueReacherEnv
+from environments.reacher import TrueReacherEnv
 
 true_reacher_env = TrueReacherEnv()
 
