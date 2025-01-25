@@ -24,7 +24,7 @@ DEVICE = "cuda"           # PyTorch device for training
 DROP_PROB = 0.1           # Dropout probability for the bayesian neural network
 
 # General hyperparameters for sampling method
-HORIZON = 50              # Trajectory time horizon (T = 50 in paper)
+HORIZON = 100              # Trajectory time horizon (T = 50 in paper)
 
 # Hyperparameters for random sampling shooting
 MPC_HORIZON = 20 # Number of steps (H) in each sampled action sequence (H = 10 in paper) / Set H = 0 to discard MPC
@@ -32,7 +32,7 @@ NUM_ACTION_SEQ = 2000 # Number of action sequences (K) sampled at each time step
 NUM_PARTICLES = 100 # The number of particles for Monte Carlo sampling during performance evaluation
 
 # Hyperparamters for the Soft Actor-Critic (SAC)
-TOTAL_TIMESTEPS = 25000 # The total number of timesteps to train the SAC in each active learning iteration
+TOTAL_TIMESTEPS = 40000 # The total number of timesteps to train the SAC in each active learning iteration
 
 # Hyperparameters for one-step predictive accuracy
 NUM_SAMPLES = 1250        # Number of (state, action, next_state) samples (N_1 = 1250 in paper)
@@ -45,8 +45,8 @@ NUM_INITIAL_STATES = 10   # Number of initial states sampled from each trajector
 NUM_PREDICTION_STEPS = 20 # Number of steps for multi-step prediction evaluation (M = 20 in paper)
 
 # Hyperparameters for the active learning evaluation
-NUM_AL_ITERATIONS = 20    # Number of active learning iterations (20 in paper)
-NUM_EVAL_REPETITIONS = 2  # Number of evaluation runs for mean and variance (20 in paper)
+NUM_AL_ITERATIONS = 3    # Number of active learning iterations (20 in paper)
+NUM_EVAL_REPETITIONS = 1  # Number of evaluation runs for mean and variance (20 in paper)
 
 # Initialize the true environment
 true_env = TrueMassSpringDamperEnv(noise_var=0.0)

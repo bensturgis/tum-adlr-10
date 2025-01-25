@@ -85,6 +85,10 @@ def train_model(
             # Accumulate training loss (multiply by batch size to get total loss for the batch)
             epoch_train_loss += batch_loss.item() * state_batch.size(0)
 
+            # clean unnecessary tensors
+            del state_batch, action_batch, next_state_batch, predicted_next_state, batch_loss
+            torch.cuda.empty_cache()  # clean GPU memory
+            
         # Compute the average training loss for the epoch
         mean_train_loss = epoch_train_loss / len(train_dataloader.dataset)
         epoch_losses[0].append(mean_train_loss)

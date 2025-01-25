@@ -136,7 +136,10 @@ class RandomSamplingShooting(SamplingMethod):
 
             # Update the progress bar
             # pbar.update(current_batch_size)
-        
+
+        # clean unnecessary tensors
+        del states, start_state, actions, next_states, states_batch, actions_batch
+        torch.cuda.empty_cache()  # clean GPU memory
         # Close the progress bar
         # pbar.close()
         
