@@ -3,8 +3,7 @@ import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
 import pygame
-from typing import Any, Dict, List, Tuple, Union
-import torch
+from typing import Any, Dict, Tuple, Union
 
 from environments.learned_env import LearnedEnv
 from models.feedforward_nn import FeedforwardNN
@@ -142,7 +141,7 @@ class TrueReacherEnv(ReacherEnv):
     serving as the ground truth for comparison with the learned environment.
     """
     def __init__(
-        self, link_length: float = 0.5, time_step: float = 0.01, noise_var: float = 0.0
+        self, link_length: float = 0.5, time_step: float = 0.2, noise_var: float = 0.0
     ) -> None:
         """
         Initialize "true" reacher environment.
@@ -246,18 +245,6 @@ class TrueReacherEnv(ReacherEnv):
         self.dtheta = np.zeros(2, dtype=np.float32)
         return self.state, {}
     
-    def get_state_bounds(self, horizon: int) -> Dict[int, np.array]:
-        """
-        Computes and retrieves state bounds over the specified horizon.
-
-        Args:
-            horizon (int): Number of simulation steps to determine bounds.
-
-        Returns:
-            Dict[int, np.ndarray]: Mapping of state dimension index to their [min, max] bounds.
-        """
-        return compute_state_bounds(env=self, horizon=horizon)
-    
     def get_action_bounds(self) -> Dict[int, np.array]:
         """
         Retrieves the action bounds for each action dimension.
@@ -276,12 +263,11 @@ class TrueReacherEnv(ReacherEnv):
 
         return action_bounds
 
-    def define_sampling_bounds(
-        self, horizon: int, bound_shrink_factor: float = 0.5
-    ) -> Dict[str, np.array]:
+    def get_state_bounds(
+        self, horizon: int, bound_shrink_factor: float
+    ) -> Dict[int, np.array]:
         """
-        Defines bounds to sample data for metrics that evaluate performance of the
-        learned environment.
+        Computes and retrieves state bounds over the specified horizon.
 
         Args:
             horizon (int): Number of steps to simulate for each action.
@@ -291,18 +277,18 @@ class TrueReacherEnv(ReacherEnv):
             Dict[int, np.array]: Dictionary mapping state dimension index to their
                                  sampling bounds.
         """
-        sampling_bounds = {}
+        adjusted_state_bounds = {}
 
         # Set fixed bounds for angle dimensions
         for dim_idx in [0, 1, 2, 3]:
-            sampling_bounds[dim_idx] = np.array([-1.0, 1.0], dtype=np.float32)
+            adjusted_state_bounds[dim_idx] = np.array([-1.0, 1.0], dtype=np.float32)
 
         # Compute and shrink raw minimum/maximum state bounds for velocity dimension 
-        state_bounds = self.get_state_bounds(horizon=horizon)
+        state_bounds = compute_state_bounds(env=self, horizon=horizon)
         for dim_idx in [4, 5]:
-            sampling_bounds[dim_idx] = bound_shrink_factor * state_bounds[dim_idx]
+            adjusted_state_bounds[dim_idx] = bound_shrink_factor * state_bounds[dim_idx]
 
-        return sampling_bounds
+        return adjusted_state_bounds
 
     def params_to_dict(self) -> Dict[str, str]:
         """

@@ -2,30 +2,23 @@ import sys
 import os
 sys.path.append(os.path.abspath("."))
 
-from environments.mass_spring_damper_system import TrueMassSpringDamperEnv, LearnedMassSpringDamperEnv
+from environments.mass_spring_damper_system import TrueMassSpringDamperEnv
+from environments.reacher import TrueReacherEnv
 from utils.visualization_utils import plot_state_space_trajectory
 
 # Use same environment and horizon as for the active learning
-env = TrueMassSpringDamperEnv(noise_var=0.0)
+# true_env = TrueMassSpringDamperEnv(noise_var=0.0)
+true_env = TrueReacherEnv()
 HORIZON = 50
 
-state_bounds = env.compute_state_bounds(horizon=HORIZON)
-exp_idx = 17
+exp_idx = 5
 num_iter = 20
-
-# for num_iter in range(10):
-plot_state_space_trajectory(
-    sampling_method="Soft Actor Critic",
-    experiment=exp_idx,
-    repetition=0,
-    num_al_iterations=num_iter,
-    state_bounds=state_bounds
-)
 
 plot_state_space_trajectory(
     sampling_method="Random Exploration",
     experiment=exp_idx,
     repetition=0,
     num_al_iterations=num_iter,
-    state_bounds=state_bounds
+    true_env=true_env,
+    horizon=HORIZON
 )

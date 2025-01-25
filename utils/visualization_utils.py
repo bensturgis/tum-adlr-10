@@ -1,3 +1,4 @@
+import gymnasium as gym
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
@@ -5,13 +6,14 @@ from models.laplace_bnn import LaplaceBNN
 from models.mc_dropout_bnn import MCDropoutBNN
 import torch
 from torch.utils.data import TensorDataset, DataLoader
-from typing import Dict
+from typing import Dict, Tuple
 
 BOUND_SHRINK_FACTOR = 0.8
 
 def plot_state_space_trajectory(
-    experiment: int, sampling_method: str, num_al_iterations: int, state_bounds: Dict[str, float],
-    repetition: int = 0, show_plot: bool = True
+    experiment: int, sampling_method: str, num_al_iterations: int,
+    true_env: gym.Env, horizon: int, repetition: int = 0,
+    show_plot: bool = True
 ):
     """
     Plot the state space exploration for a specified experiment, sampling method,
@@ -22,6 +24,9 @@ def plot_state_space_trajectory(
         sampling_method (str): The sampling method (Allowed options: "Random Exploration" and
                                "Random Sampling Shooting").
         num_al_iterations (int): Number of active learning iterations to plot.
+        visualization_bounds (Dict[str, float]): Bounds for state space dimensions (min/max values).
+        state_dims_to_vis (Tuple[int]): Indices of state dimensions to plot on x and y axes.
+        state_dim_names (Dict[int, str]): Names of state dimensions for axis labels.
         state_bounds (Dict[str, float]): Dictionary specifying the bounds of the reachable state space.
         repetition (int): The repetition number. Defaults to 0.
     """
@@ -42,22 +47,53 @@ def plot_state_space_trajectory(
         figsize=(10, 10)
     )
     plt.title(f"{sampling_method} after {num_al_iterations} Active Learning Iterations")
-    # TODO: Find smarter solution to label axis correctly
-    plt.xlabel("Position")
-    plt.ylabel("Velocity")
 
-    # Plot the trajectories for each active learning iteration
-    for iteration in range(num_al_iterations):
-        # Check if the iteration exists in the file
-        if iteration < trajectories.shape[0]:
-            trajectory = trajectories[iteration]  # Shape: (horizon, state_dim)
-            # plt.scatter(trajectory[:, 0], trajectory[:, 1], label=f"Iteration {iteration}", s=10)
-            plt.plot(trajectory[:, 0], trajectory[:, 1], label=f"Iteration {iteration}")
+    if true_env.name == "Mass-Spring-Damper System":
+        # Get bounds for state space dimensions (min/max values)
+        visualization_bounds = true_env.get_state_bounds(horizon=horizon, bound_shrink_factor=0.8)
+
+        # Label axes
+        plt.xlabel("Position")
+        plt.ylabel("Velocity")
+
+        # Plot the trajectories for each active learning iteration
+        for iteration in range(num_al_iterations):
+            # Check if the iteration exists in the file
+            if iteration < trajectories.shape[0]:
+                trajectory = trajectories[iteration]  # Shape: (horizon, state_dim)
+                # plt.scatter(trajectory[:, 0], trajectory[:, 1], label=f"Iteration {iteration}", s=10)
+                plt.plot(trajectory[:, 0], trajectory[:, 1], label=f"Iteration {iteration}")
+
+        # Set minimum and maximum values
+        plt.xlim(visualization_bounds[0][0], visualization_bounds[0][1])
+        plt.ylim(visualization_bounds[1][0], visualization_bounds[1][1])
+    elif true_env.name == "Reacher":
+        # Label axes
+        plt.xlabel(r"$\theta_1$")
+        plt.xlabel(r"$\theta_2$")
+
+        # Plot the trajectories for each active learning iteration
+        for iteration in range(num_al_iterations):
+            # Check if the iteration exists in the file
+            if iteration < trajectories.shape[0]:
+                trajectory = trajectories[iteration]  # Shape: (horizon, state_dim)
+                # Plot theta_1 and theta_2 instead of sine/cosine representation
+                theta_1 = np.arctan2(trajectory[:, 2], trajectory[:, 0])
+                theta_2 = np.arctan2(trajectory[:, 3], trajectory[:, 1])
+                # plt.scatter(theta_1, theta_2, label=f"Iteration {iteration}", s=10)
+                plt.plot(theta_1, theta_2, label=f"Iteration {iteration}")
+
+        # Set minimum and maximum values
+        plt.xlim(-np.pi, np.pi)
+        plt.ylim(-np.pi, np.pi)
+    else:
+        raise ValueError(f"Unsupported environment: {true_env.name}. "
+                         "Expected 'Mass-Spring-Damper System' or 'Reacher'.")
+
 
     plt.legend()
     plt.grid(True)
-    plt.xlim(BOUND_SHRINK_FACTOR * state_bounds["min_position"], BOUND_SHRINK_FACTOR * state_bounds["max_position"])
-    plt.ylim(BOUND_SHRINK_FACTOR * state_bounds["min_velocity"], BOUND_SHRINK_FACTOR * state_bounds["max_velocity"])
+    
     if show_plot:
         plt.show()
     else:

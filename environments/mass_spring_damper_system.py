@@ -4,7 +4,7 @@ import gymnasium as gym
 from gymnasium import spaces
 import pygame
 import torch
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, Tuple, Union
 
 from environments.learned_env import LearnedEnv
 from models.feedforward_nn import FeedforwardNN
@@ -196,18 +196,6 @@ class TrueMassSpringDamperEnv(MassSpringDamperEnv):
         truncated = False
 
         return self.state, reward, terminated, truncated, {}
-
-    def get_state_bounds(self, horizon: int) -> Dict[int, np.array]:
-        """
-        Computes and retrieves state bounds over the specified horizon.
-
-        Args:
-            horizon (int): Number of simulation steps to determine bounds.
-
-        Returns:
-            Dict[int, np.ndarray]: Mapping of state dimension index to their [min, max] bounds.
-        """
-        return compute_state_bounds(env=self, horizon=horizon)
     
     def get_action_bounds(self) -> Dict[int, np.array]:
         """
@@ -227,13 +215,12 @@ class TrueMassSpringDamperEnv(MassSpringDamperEnv):
 
         return action_bounds
     
-    def define_sampling_bounds(
+    def get_state_bounds(
         self, horizon: int, bound_shrink_factor: float = 0.5
     ) -> Dict[int, np.array]:
         """
-        Defines bounds to sample data for metrics that evaluate performance of the
-        learned environment.
-
+        Computes and retrieves state bounds over the specified horizon.
+        
         Args:
             horizon (int): Number of steps to simulate for each action.
             bound_shrink_factor (float): Factor by which to shrink maximum/minimum state bounds.
@@ -243,14 +230,14 @@ class TrueMassSpringDamperEnv(MassSpringDamperEnv):
                                  sampling bounds.
         """
         # Compute the raw minimum/maximum state bounds
-        state_bounds = self.get_state_bounds(horizon=horizon)
+        state_bounds = compute_state_bounds(env=self, horizon=horizon)
         
-        sampling_bounds = {}        
+        adjusted_state_bounds = {}        
         for dim_idx in range(self.state_dim):
             # Apply the shrink factor to the minimum/maximum state bounds
-            sampling_bounds[dim_idx] = bound_shrink_factor * state_bounds[dim_idx]
+            adjusted_state_bounds[dim_idx] = bound_shrink_factor * state_bounds[dim_idx]
         
-        return sampling_bounds
+        return adjusted_state_bounds
     
     def params_to_dict(self) -> Dict[str, str]:
         """

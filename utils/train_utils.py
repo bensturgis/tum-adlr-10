@@ -69,11 +69,11 @@ def compute_state_bounds(env: gym.Env, horizon: int) -> Dict[int, np.array]:
 
     min_action = env.action_space.low  # Minimum action values
     max_action = env.action_space.high  # Maximum action values
-    
+
     # Initialize bounds with infinities
     state_bounds = {}
     
-    for dim_idx, dim_name in env.state_dim_names.items():
+    for dim_idx in env.state_dim_names.keys():
         # Simulate with min and max actions
         min_val_min_act, max_val_min_act = simulate(min_action, dim_idx)
         min_val_max_act, max_val_max_act = simulate(max_action, dim_idx)

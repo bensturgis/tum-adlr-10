@@ -19,7 +19,7 @@ check_env(true_env, warn=True)
 
 # Set up the dynamics model and learned environment
 state_dim = true_env.state_dim
-action_dim = true_env.action_space.shape[0]
+action_dim = true_env.action_dim
 # dynamics_model = FeedforwardNN(state_dim, action_dim, hidden_size=HIDDEN_SIZE)
 dynamics_model = MCDropoutBNN(
     state_dim=state_dim,

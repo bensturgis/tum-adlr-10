@@ -40,7 +40,7 @@ class RandomExploration(SamplingMethod):
         # Perform exploration for up to 'horizon' steps
         for _ in range(self.horizon):    
             # Append the current state to the list
-            states.append(true_env.unwrapped.state)
+            states.append(true_env.state)
             
             # Sample a random action from the environment's action space
             action = true_env.action_space.sample()

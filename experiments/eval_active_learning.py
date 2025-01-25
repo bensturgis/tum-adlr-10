@@ -16,7 +16,7 @@ from sampling_methods.random_sampling_shooting import RandomSamplingShooting
 from sampling_methods.soft_actor_critic import SoftActorCritic
 
 # Hyperparameters for neural network and training
-HIDDEN_SIZE = 72          # Hidden units in the neural network
+HIDDEN_SIZE = 16          # Hidden units in the neural network
 NUM_EPOCHS = 25           # Training epochs per iteration
 BATCH_SIZE = 50           # Batch size for training
 LEARNING_RATE = 1e-3      # Learning rate for the optimizer
@@ -24,7 +24,8 @@ DEVICE = "cuda"           # PyTorch device for training
 DROP_PROB = 0.1           # Dropout probability for the bayesian neural network
 
 # General hyperparameters for sampling method
-HORIZON = 100              # Trajectory time horizon (T = 50 in paper)
+# Set HORIZON >= 100 for reacher environment to ensure exploration of theta angles in range [-π, π]
+HORIZON = 50              # Trajectory time horizon
 
 # Hyperparameters for random sampling shooting
 MPC_HORIZON = 20 # Number of steps (H) in each sampled action sequence (H = 10 in paper) / Set H = 0 to discard MPC
@@ -45,16 +46,16 @@ NUM_INITIAL_STATES = 10   # Number of initial states sampled from each trajector
 NUM_PREDICTION_STEPS = 20 # Number of steps for multi-step prediction evaluation (M = 20 in paper)
 
 # Hyperparameters for the active learning evaluation
-NUM_AL_ITERATIONS = 3    # Number of active learning iterations (20 in paper)
-NUM_EVAL_REPETITIONS = 1  # Number of evaluation runs for mean and variance (20 in paper)
+NUM_AL_ITERATIONS = 20    # Number of active learning iterations (20 in paper)
+NUM_EVAL_REPETITIONS = 2  # Number of evaluation runs for mean and variance (20 in paper)
 
 # Initialize the true environment
-true_env = TrueMassSpringDamperEnv(noise_var=0.0)
-# true_env = TrueReacherEnv()
+# true_env = TrueMassSpringDamperEnv(noise_var=0.0)
+true_env = TrueReacherEnv()
 
 # Get state and action bounds for the dynamical system over the specified horizon
 # to perform input expansion if necessary and keep magnitude of the input constant
-state_bounds = true_env.get_state_bounds(horizon=HORIZON)
+state_bounds = true_env.get_state_bounds(horizon=HORIZON, bound_shrink_factor=1.0)
 actions_bounds = true_env.get_action_bounds()
 
 # Extract state and action dimension
@@ -70,27 +71,27 @@ input_expansion = true_env.input_expansion
 #     action_dim=action_dim,
 #     hidden_size=HIDDEN_SIZE
 # )
-# dynamics_model = MCDropoutBNN(
-#     state_dim=state_dim,
-#     action_dim=action_dim,
-#     input_expansion=true_env.input_expansion,
-#     state_bounds=state_bounds,
-#     action_bounds=actions_bounds,
-#     hidden_size=HIDDEN_SIZE,
-#     drop_prob=DROP_PROB,
-#     device=DEVICE,
-# )
-dynamics_model = LaplaceBNN(
+dynamics_model = MCDropoutBNN(
     state_dim=state_dim,
     action_dim=action_dim,
     input_expansion=true_env.input_expansion,
     state_bounds=state_bounds,
     action_bounds=actions_bounds,
     hidden_size=HIDDEN_SIZE,
+    drop_prob=DROP_PROB,
     device=DEVICE,
 )
-learned_env = LearnedMassSpringDamperEnv(model=dynamics_model)
-# learned_env = LearnedReacherEnv(model=dynamics_model)
+# dynamics_model = LaplaceBNN(
+#     state_dim=state_dim,
+#     action_dim=action_dim,
+#     input_expansion=true_env.input_expansion,
+#     state_bounds=state_bounds,
+#     action_bounds=actions_bounds,
+#     hidden_size=HIDDEN_SIZE,
+#     device=DEVICE,
+# )
+# learned_env = LearnedMassSpringDamperEnv(model=dynamics_model)
+learned_env = LearnedReacherEnv(model=dynamics_model)
 
 # Initialize the sampling methods
 random_exploration = RandomExploration(horizon=HORIZON)
@@ -108,7 +109,7 @@ sampling_methods = [random_exploration]
 
 # Extract the minimum and maximum state bounds for sampling data to evaluate
 # the performance of the learned model 
-sampling_bounds = true_env.define_sampling_bounds(horizon=HORIZON)
+sampling_bounds = true_env.get_state_bounds(horizon=HORIZON, bound_shrink_factor=0.5)
 
 # Initialize the evluation metrics 
 one_step_pred_acc_eval = OneStepPredictiveAccuracyEvaluator(
