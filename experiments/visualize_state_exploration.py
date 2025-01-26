@@ -11,7 +11,7 @@ from utils.visualization_utils import plot_state_space_trajectory
 true_env = TrueReacherEnv()
 HORIZON = 50
 
-exp_idx = 5
+exp_idx = 8
 num_iter = 20
 
 plot_state_space_trajectory(

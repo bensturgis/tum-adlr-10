@@ -25,7 +25,7 @@ DROP_PROB = 0.1           # Dropout probability for the bayesian neural network
 
 # General hyperparameters for sampling method
 # Set HORIZON >= 100 for reacher environment to ensure exploration of theta angles in range [-π, π]
-HORIZON = 50              # Trajectory time horizon
+HORIZON = 100              # Trajectory time horizon
 
 # Hyperparameters for random sampling shooting
 MPC_HORIZON = 20 # Number of steps (H) in each sampled action sequence (H = 10 in paper) / Set H = 0 to discard MPC
@@ -107,21 +107,22 @@ soft_actor_critic = SoftActorCritic(
 )
 sampling_methods = [random_exploration]
 
-# Extract the minimum and maximum state bounds for sampling data to evaluate
-# the performance of the learned model 
-sampling_bounds = true_env.get_state_bounds(horizon=HORIZON, bound_shrink_factor=0.5)
+# Extract the minimum and maximum state bounds for sampling data to evaluate the
+# performance of the learned model with the one-step and multi-step predictive accuracy
+one_step_sampling_bounds = true_env.get_state_bounds(horizon=HORIZON, bound_shrink_factor=0.1)
+multi_step_sampling_bounds = true_env.get_state_bounds(horizon=HORIZON, bound_shrink_factor=0.1)
 
 # Initialize the evluation metrics 
 one_step_pred_acc_eval = OneStepPredictiveAccuracyEvaluator(
     true_env=true_env,
     learned_env=learned_env,
-    sampling_bounds=sampling_bounds,
+    sampling_bounds=one_step_sampling_bounds,
     num_samples=NUM_SAMPLES,
 ) 
 multi_step_pred_acc_eval = MultiStepPredictiveAccuracyEvaluator(
     true_env=true_env,
     learned_env=learned_env,
-    sampling_bounds=sampling_bounds,
+    sampling_bounds=multi_step_sampling_bounds,
     num_trajectories=NUM_TRAJECTORIES,
     trajectory_horizon=TRAJCETORY_LENGTH,
     num_initial_states=NUM_INITIAL_STATES,

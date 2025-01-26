@@ -40,20 +40,11 @@ class MultiStepPredictiveAccuracyEvaluator(EvaluationMetric):
         # A list to store data for each trajectory, including states, actions, and
         # the chosen initial indices from which we'll start multi-step rollouts
         self.trajectories_data = []
-
-        # Initialize arrays to store lower and upper bounds for each state dimension
-        state_low = np.empty(true_env.state_dim)
-        state_high = np.empty(true_env.state_dim)
-
-        # Extract minimum and maximum state bounds for each state dimension
-        for dim_idx in range(true_env.state_dim):
-            state_low[dim_idx], state_high[dim_idx] = sampling_bounds[dim_idx][:]
-
-        # Sample start states uniformly within the computed range
-        start_states = np.random.uniform(
-            low=state_low,
-            high=state_high,
-            size=(self.num_trajectories, true_env.state_dim)
+        
+        # Sample start states
+        start_states = true_env.sample_states(
+            num_samples=self.num_trajectories,
+            sampling_bounds=sampling_bounds
         )
 
         # Generate trajectories by rolling out in the true environment starting from

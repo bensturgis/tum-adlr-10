@@ -141,7 +141,7 @@ class TrueReacherEnv(ReacherEnv):
     serving as the ground truth for comparison with the learned environment.
     """
     def __init__(
-        self, link_length: float = 0.5, time_step: float = 0.2, noise_var: float = 0.0
+        self, link_length: float = 0.5, time_step: float = 0.1, noise_var: float = 0.0
     ) -> None:
         """
         Initialize "true" reacher environment.
@@ -289,6 +289,49 @@ class TrueReacherEnv(ReacherEnv):
             adjusted_state_bounds[dim_idx] = bound_shrink_factor * state_bounds[dim_idx]
 
         return adjusted_state_bounds
+    
+    def sample_states(
+        self, num_samples: int, sampling_bounds: Dict[int, np.array]
+    ) -> np.array:
+        """
+        Samples a specified number of states.
+
+        Args:
+            num_samples (int): Number of states to sample.
+            sampling_bounds (Dict[int, np.array]): Bounds for each state dimension, 
+                where each entry is [min, max].
+
+        Returns:
+            np.array: An array of shape (num_samples, state_dim) containing the sampled states.
+        """
+        # Initialize the output array
+        sampled_states = np.zeros((num_samples, self.state_dim), dtype=np.float32)
+
+        # Uniformly sample angles theta1 and theta2 from [-π, π]
+        theta1_samples = np.random.uniform(-np.pi, np.pi, size=num_samples)
+        theta2_samples = np.random.uniform(-np.pi, np.pi, size=num_samples)
+
+        # Convert angles to cosine/sine
+        cos_t1 = np.cos(theta1_samples)
+        sin_t1 = np.sin(theta1_samples)
+        cos_t2 = np.cos(theta2_samples)
+        sin_t2 = np.sin(theta2_samples)
+
+        # Uniformely sample velocities within specified bounds
+        vx_low, vx_high = sampling_bounds[4]
+        vy_low, vy_high = sampling_bounds[5]
+        velocity_x_samples = np.random.uniform(vx_low, vx_high, size=num_samples)
+        velocity_y_samples = np.random.uniform(vy_low, vy_high, size=num_samples)
+
+        # Combine everything into the sampled states array
+        sampled_states[:, 0] = cos_t1
+        sampled_states[:, 1] = cos_t2
+        sampled_states[:, 2] = sin_t1
+        sampled_states[:, 3] = sin_t2
+        sampled_states[:, 4] = velocity_x_samples
+        sampled_states[:, 5] = velocity_y_samples
+
+        return sampled_states
 
     def params_to_dict(self) -> Dict[str, str]:
         """

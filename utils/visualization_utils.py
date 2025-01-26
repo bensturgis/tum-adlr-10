@@ -24,11 +24,9 @@ def plot_state_space_trajectory(
         sampling_method (str): The sampling method (Allowed options: "Random Exploration" and
                                "Random Sampling Shooting").
         num_al_iterations (int): Number of active learning iterations to plot.
-        visualization_bounds (Dict[str, float]): Bounds for state space dimensions (min/max values).
-        state_dims_to_vis (Tuple[int]): Indices of state dimensions to plot on x and y axes.
-        state_dim_names (Dict[int, str]): Names of state dimensions for axis labels.
-        state_bounds (Dict[str, float]): Dictionary specifying the bounds of the reachable state space.
         repetition (int): The repetition number. Defaults to 0.
+        true_env (gym.Env): The environment instance, which determines how trajectories are plotted.
+        horizon (int): The number of steps used for computing state bounds.
     """
     # Construct the path to the state trajectories folder
     base_path = Path(__file__).parent.parent / "experiments" / "active_learning_evaluations"
@@ -70,7 +68,7 @@ def plot_state_space_trajectory(
     elif true_env.name == "Reacher":
         # Label axes
         plt.xlabel(r"$\theta_1$")
-        plt.xlabel(r"$\theta_2$")
+        plt.ylabel(r"$\theta_2$")
 
         # Plot the trajectories for each active learning iteration
         for iteration in range(num_al_iterations):
@@ -80,8 +78,8 @@ def plot_state_space_trajectory(
                 # Plot theta_1 and theta_2 instead of sine/cosine representation
                 theta_1 = np.arctan2(trajectory[:, 2], trajectory[:, 0])
                 theta_2 = np.arctan2(trajectory[:, 3], trajectory[:, 1])
-                # plt.scatter(theta_1, theta_2, label=f"Iteration {iteration}", s=10)
-                plt.plot(theta_1, theta_2, label=f"Iteration {iteration}")
+                plt.scatter(theta_1, theta_2, label=f"Iteration {iteration}", s=10)
+                # plt.plot(theta_1, theta_2, label=f"Iteration {iteration}")
 
         # Set minimum and maximum values
         plt.xlim(-np.pi, np.pi)
@@ -89,7 +87,6 @@ def plot_state_space_trajectory(
     else:
         raise ValueError(f"Unsupported environment: {true_env.name}. "
                          "Expected 'Mass-Spring-Damper System' or 'Reacher'.")
-
 
     plt.legend()
     plt.grid(True)

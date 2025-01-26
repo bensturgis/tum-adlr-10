@@ -239,6 +239,37 @@ class TrueMassSpringDamperEnv(MassSpringDamperEnv):
         
         return adjusted_state_bounds
     
+    def sample_states(
+        self, num_samples: int, sampling_bounds: Dict[int, np.array]
+    ) -> np.array:
+        """
+        Samples a specified number of states.
+
+        Args:
+            num_samples (int): Number of states to sample.
+            sampling_bounds (Dict[int, np.array]): Bounds for each state dimension, 
+                where each entry is [min, max].
+
+        Returns:
+            np.array: An array of shape (num_samples, state_dim) containing the sampled states.
+        """
+        # Initialize arrays to store lower and upper bounds for each state dimension
+        state_low = np.empty(self.state_dim)
+        state_high = np.empty(self.state_dim)
+
+        # Extract minimum and maximum state bounds for each state dimension
+        for dim_idx in range(self.state_dim):
+            state_low[dim_idx], state_high[dim_idx] = sampling_bounds[dim_idx][:]
+
+        # Sample states uniformly within the computed range
+        sampled_states = np.random.uniform(
+            low=state_low,
+            high=state_high,
+            size=(num_samples, self.state_dim)
+        )
+
+        return sampled_states
+    
     def params_to_dict(self) -> Dict[str, str]:
         """
         Converts hyperparameters into a dictionary.

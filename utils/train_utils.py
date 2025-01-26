@@ -103,20 +103,8 @@ def create_test_dataset(
         TensorDataset: A PyTorch dataset containing (state, action, next_state) triples
                        for valid transitions.
     """
-    # Initialize arrays to store lower and upper bounds for each state dimension
-    state_low = np.empty(true_env.state_dim)
-    state_high = np.empty(true_env.state_dim)
-
-    # Extract minimum and maximum state bounds for each state dimension
-    for dim_idx in range(true_env.state_dim):
-        state_low[dim_idx], state_high[dim_idx] = sampling_bounds[dim_idx][:]
-
-    # Sample states uniformly within the computed range
-    sampled_states = np.random.uniform(
-        low=state_low,
-        high=state_high,
-        size=(num_samples, true_env.state_dim)
-    )
+    # Sample states
+    sampled_states = true_env.sample_states(num_samples, sampling_bounds)
     
     # Sample actions from the environment's action space
     sampled_actions = np.array([true_env.action_space.sample() for _ in range(num_samples)])
