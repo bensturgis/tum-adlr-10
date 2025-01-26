@@ -47,11 +47,11 @@ NUM_PREDICTION_STEPS = 20 # Number of steps for multi-step prediction evaluation
 
 # Hyperparameters for the active learning evaluation
 NUM_AL_ITERATIONS = 20    # Number of active learning iterations (20 in paper)
-NUM_EVAL_REPETITIONS = 5  # Number of evaluation runs for mean and variance (20 in paper)
+NUM_EVAL_REPETITIONS = 3  # Number of evaluation runs for mean and variance (20 in paper)
 
 # Initialize the true environment
-# true_env = TrueMassSpringDamperEnv(noise_var=0.0)
-true_env = TrueReacherEnv()
+# true_env = TrueMassSpringDamperEnv()
+true_env = TrueReacherEnv(link_length=1.0)
 
 # Get state and action bounds for the dynamical system over the specified horizon
 # to perform input expansion if necessary and keep magnitude of the input constant
@@ -109,8 +109,8 @@ sampling_methods = [random_exploration]
 
 # Extract the minimum and maximum state bounds for sampling data to evaluate the
 # performance of the learned model with the one-step and multi-step predictive accuracy
-one_step_sampling_bounds = true_env.get_state_bounds(horizon=HORIZON, bound_shrink_factor=0.001)
-multi_step_sampling_bounds = true_env.get_state_bounds(horizon=HORIZON, bound_shrink_factor=0.001)
+one_step_sampling_bounds = true_env.get_state_bounds(horizon=HORIZON, bound_shrink_factor=0.1)
+multi_step_sampling_bounds = true_env.get_state_bounds(horizon=HORIZON, bound_shrink_factor=0.1)
 
 # Initialize the evluation metrics 
 one_step_pred_acc_eval = OneStepPredictiveAccuracyEvaluator(

@@ -90,7 +90,7 @@ class ActiveLearningEvaluator():
             )
         
         # Extract the minimum and maximum state values the environment can reach for the given horizon
-        sampling_bounds = self.true_env.get_state_bounds(horizon=horizon, bound_shrink_factor=0.001)
+        sampling_bounds = self.true_env.get_state_bounds(horizon=horizon, bound_shrink_factor=0.1)
 
         # Create dataset and dataloader of (state, action, next_state) samples from the true environment
         test_dataset = create_test_dataset(true_env=self.true_env, num_samples=1250, sampling_bounds=sampling_bounds)

@@ -271,7 +271,7 @@ class TrueReacherEnv(ReacherEnv):
         Returns:
             Tuple[np.ndarray, dict]: Initial state and additional reset info.
         """
-        self.state = np.zeros(6, dtype=np.float32)
+        self.state = np.array([1.0, 1.0, 0.0, 0.0, 0.0, 0.0], dtype=np.float32)
         self.dtheta = np.zeros(2, dtype=np.float32)
         return self.state, {}
     
@@ -424,7 +424,7 @@ class LearnedReacherEnv(ReacherEnv, LearnedEnv):
         Returns:
             Tuple[np.ndarray, dict]: Initial state and additional reset info.
         """
-        self.state = np.zeros(6, dtype=np.float32)
+        self.state = np.array([1.0, 1.0, 0.0, 0.0, 0.0, 0.0], dtype=np.float32)
         return self.state, {}
 
     def params_to_dict(self) -> Dict[str, str]:
