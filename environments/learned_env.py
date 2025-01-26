@@ -54,7 +54,7 @@ class LearnedEnv():
             # Deterministic model prediction: only returns next state
             next_state = self.model(state_tensor, action_tensor).squeeze(0).detach().numpy()
             # Update state
-            self.state = next_state.squeeze(0).detach().numpy()
+            self.state = next_state
             reward = 0.0  # No reward for deterministic models
         else:
             raise ValueError(f"Unsupported model type: {type(self.model)}. "
@@ -88,6 +88,15 @@ class LearnedEnv():
         diff_entropy = const + 0.5 * np.sum(np.log(pred_vars))
 
         return diff_entropy
+    
+    def set_state(self, state: np.ndarray) -> None:
+        """
+        Sets the environment's state.
+
+        Args:
+            state (np.ndarray): A numpy array representing the state.
+        """
+        self.state = state
     
     def params_to_dict(self) -> Dict[str, str]:
         """

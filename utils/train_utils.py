@@ -73,7 +73,7 @@ def compute_state_bounds(env: gym.Env, horizon: int) -> Dict[int, np.array]:
     # Initialize bounds with infinities
     state_bounds = {}
     
-    for dim_idx in env.state_dim_names.keys():
+    for dim_idx in range(env.state_dim):
         # Simulate with min and max actions
         min_val_min_act, max_val_min_act = simulate(min_action, dim_idx)
         min_val_max_act, max_val_max_act = simulate(max_action, dim_idx)
@@ -119,7 +119,7 @@ def create_test_dataset(
         action = sampled_actions[i]
 
         # Set the environment state
-        true_env.state = state
+        true_env.set_state(state)
         next_state, _, terminated, truncated, _ = true_env.step(action)
 
         # Keep only valid transitions (no termination/truncation)

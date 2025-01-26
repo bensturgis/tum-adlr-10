@@ -51,7 +51,7 @@ class MultiStepPredictiveAccuracyEvaluator(EvaluationMetric):
         # a start state
         for start_state in start_states:
             # Set the true environment to a start state
-            true_env.state = start_state
+            true_env.set_state(start_state)
 
             # Collect states and actions
             states = [start_state]
@@ -59,7 +59,7 @@ class MultiStepPredictiveAccuracyEvaluator(EvaluationMetric):
 
             for _ in range(trajectory_horizon):
                 # Sample a random action
-                sampled_action = true_env.action_space.sample()[0]
+                sampled_action = true_env.action_space.sample()
 
                 # Step in the true environment
                 next_state, _, terminated, truncated, _ = true_env.step(sampled_action)
@@ -116,7 +116,7 @@ class MultiStepPredictiveAccuracyEvaluator(EvaluationMetric):
             # For each sampled initial state, run num_prediction_steps in the learned env
             for idx in initial_indices:
                 # Set the learned environment's state to the sampled initial state
-                self.learned_env.state = states[idx].copy()
+                self.learned_env.set_state(states[idx].copy())
 
                 # Flag to detect early termination
                 early_termination = False

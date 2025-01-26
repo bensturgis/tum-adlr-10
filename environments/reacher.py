@@ -74,6 +74,10 @@ class ReacherEnv(gym.Env, ABC):
         pass
 
     @abstractmethod
+    def set_state(self, state: np.ndarray) -> None:
+        pass
+
+    @abstractmethod
     def reset(
         self, seed: int = None, options: Dict[str, Any] = None
     ) -> Tuple[np.ndarray, Dict]:
@@ -141,7 +145,7 @@ class TrueReacherEnv(ReacherEnv):
     serving as the ground truth for comparison with the learned environment.
     """
     def __init__(
-        self, link_length: float = 0.5, time_step: float = 0.1, noise_var: float = 0.0
+        self, link_length: float = 0.5, time_step: float = 0.2, noise_var: float = 0.0
     ) -> None:
         """
         Initialize "true" reacher environment.
@@ -228,6 +232,32 @@ class TrueReacherEnv(ReacherEnv):
         return np.array([[dxdt1, dxdt2],
                          [dydt1, dydt2]], dtype=np.float32)
 
+    def set_state(self, state: np.ndarray) -> None:
+        """
+        Sets the environment's state and updates the angular velocities based on the Jacobian.
+
+        Args:
+            state (np.ndarray): A numpy array representing the state 
+                                [cos(theta1), cos(theta2), sin(theta1), sin(theta2), vx, vy].
+        """
+        self.state = state
+
+        # Extract cosine and sine components
+        cos_t1, cos_t2, sin_t1, sin_t2, vx, vy = self.state
+
+        # Compute the actual angles from sine and cosine
+        theta1 = np.arctan2(sin_t1, cos_t1)
+        theta2 = np.arctan2(sin_t2, cos_t2)
+
+        # Compute the Jacobian matrix at the current angles
+        jacobian = self.compute_jacobian(theta1, theta2)
+
+        # Form the velocity vector
+        velocity_vector = np.array([vx, vy], dtype=np.float32)
+
+        # Compute angular velocities using pseudo-inverse of Jacobian: 
+        self.dtheta = np.linalg.pinv(jacobian).dot(velocity_vector)
+
     def reset(
         self, seed: int = None, options: Dict[str, Any] = None
     ) -> Tuple[np.ndarray, Dict]:
@@ -307,9 +337,22 @@ class TrueReacherEnv(ReacherEnv):
         # Initialize the output array
         sampled_states = np.zeros((num_samples, self.state_dim), dtype=np.float32)
 
-        # Uniformly sample angles theta1 and theta2 from [-π, π]
+        # Uniformly sample angles theta1 from [-π, π]
         theta1_samples = np.random.uniform(-np.pi, np.pi, size=num_samples)
-        theta2_samples = np.random.uniform(-np.pi, np.pi, size=num_samples)
+        
+        # Uniformly sample angles theta2 from [-π, π]
+        theta2_samples = np.empty(num_samples, dtype=float)
+        # Resample any values that fall within epsilon of -π, 0, or π to avoid singular configurations
+        excluded_points = [-np.pi, 0.0, np.pi]
+        epsilon = 1e-3
+        
+        for i in range(num_samples):
+            while True:
+                candidate = np.random.uniform(-np.pi, np.pi)
+                # Check if the candidate is within epsilon of any excluded point
+                if not any(abs(candidate - point) < epsilon for point in excluded_points):
+                    theta2_samples[i] = candidate
+                    break
 
         # Convert angles to cosine/sine
         cos_t1 = np.cos(theta1_samples)
@@ -364,6 +407,9 @@ class LearnedReacherEnv(ReacherEnv, LearnedEnv):
         self, action: np.ndarray
     ) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
         return LearnedEnv.step(self, action)
+    
+    def set_state(self, state: np.ndarray) -> None:
+        return LearnedEnv.set_state(self, state)
 
     def reset(
         self, seed: int = None, options: Dict[str, Any] = None

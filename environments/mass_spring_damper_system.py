@@ -61,6 +61,10 @@ class MassSpringDamperEnv(gym.Env, ABC):
     ) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
         pass
 
+    @abstractmethod
+    def set_state(self, state: np.ndarray) -> None:
+        pass
+
     def reset(
         self, seed: int = None, options: Dict[str, Any] = None
     ) -> Tuple[np.ndarray, Dict]:
@@ -214,6 +218,15 @@ class TrueMassSpringDamperEnv(MassSpringDamperEnv):
             )
 
         return action_bounds
+    
+    def set_state(self, state: np.ndarray) -> None:
+        """
+        Sets the environment's state.
+
+        Args:
+            state (np.ndarray): A numpy array representing the state [position, velocity].
+        """
+        self.state = state
     
     def get_state_bounds(
         self, horizon: int, bound_shrink_factor: float = 0.5

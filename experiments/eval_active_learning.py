@@ -16,7 +16,7 @@ from sampling_methods.random_sampling_shooting import RandomSamplingShooting
 from sampling_methods.soft_actor_critic import SoftActorCritic
 
 # Hyperparameters for neural network and training
-HIDDEN_SIZE = 16          # Hidden units in the neural network
+HIDDEN_SIZE = 72          # Hidden units in the neural network
 NUM_EPOCHS = 25           # Training epochs per iteration
 BATCH_SIZE = 50           # Batch size for training
 LEARNING_RATE = 1e-3      # Learning rate for the optimizer
@@ -47,7 +47,7 @@ NUM_PREDICTION_STEPS = 20 # Number of steps for multi-step prediction evaluation
 
 # Hyperparameters for the active learning evaluation
 NUM_AL_ITERATIONS = 20    # Number of active learning iterations (20 in paper)
-NUM_EVAL_REPETITIONS = 2  # Number of evaluation runs for mean and variance (20 in paper)
+NUM_EVAL_REPETITIONS = 5  # Number of evaluation runs for mean and variance (20 in paper)
 
 # Initialize the true environment
 # true_env = TrueMassSpringDamperEnv(noise_var=0.0)
@@ -109,8 +109,8 @@ sampling_methods = [random_exploration]
 
 # Extract the minimum and maximum state bounds for sampling data to evaluate the
 # performance of the learned model with the one-step and multi-step predictive accuracy
-one_step_sampling_bounds = true_env.get_state_bounds(horizon=HORIZON, bound_shrink_factor=0.1)
-multi_step_sampling_bounds = true_env.get_state_bounds(horizon=HORIZON, bound_shrink_factor=0.1)
+one_step_sampling_bounds = true_env.get_state_bounds(horizon=HORIZON, bound_shrink_factor=0.001)
+multi_step_sampling_bounds = true_env.get_state_bounds(horizon=HORIZON, bound_shrink_factor=0.001)
 
 # Initialize the evluation metrics 
 one_step_pred_acc_eval = OneStepPredictiveAccuracyEvaluator(

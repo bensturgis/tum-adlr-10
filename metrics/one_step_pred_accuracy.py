@@ -12,7 +12,7 @@ class OneStepPredictiveAccuracyEvaluator(EvaluationMetric):
 
     def __init__(
             self, true_env: gym.Env, learned_env: gym.Env, num_samples: int,
-            sampling_bounds: Dict[str, np.array]
+            sampling_bounds: Dict[int, np.array]
         ) -> None:
         """
         Initializes the one-step evaluator with a true environment, a learned environment, and parameters 
@@ -23,7 +23,7 @@ class OneStepPredictiveAccuracyEvaluator(EvaluationMetric):
             learned_env (gym.Env): The learned environment to be evaluated.
             num_samples (int): The number of samples ((state, action, next_state) pairs) to include 
                                in the test dataset.
-            sampling_bounds (Dict[str, np.array]): Dictionary specifying the bounds for state sampling.
+            sampling_bounds (Dict[int, np.array]): Dictionary specifying the bounds for state sampling.
         """
         self.learned_env = learned_env
         self.num_samples = num_samples
@@ -54,7 +54,7 @@ class OneStepPredictiveAccuracyEvaluator(EvaluationMetric):
             true_next_state = true_next_state.numpy()
 
             # Set the initial state in the learned environment
-            self.learned_env.state = state
+            self.learned_env.set_state(state)
             pred_next_state, _, pred_terminated, pred_truncated, _ = self.learned_env.step(action)
 
             # Skip if termination or truncation occurs
