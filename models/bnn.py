@@ -36,6 +36,20 @@ class BNN(nn.Module, ABC):
         self.state_bounds = state_bounds
         self.action_bounds = action_bounds
         self.device = device
+        if self.input_expansion:
+            # Initialize tensor to store absolute state bound for each state dimension
+            self.input_bounds = torch.empty(self.state_dim + self.action_dim)
+            for state_dim_idx in range(self.state_dim):
+                self.input_bounds[state_dim_idx] = torch.tensor(
+                    np.max(np.abs(self.state_bounds[state_dim_idx])), 
+                    dtype=torch.float32
+                )
+            for action_dim_idx in range(self.action_dim):
+                self.input_bounds[self.state_dim + action_dim_idx] = torch.tensor(
+                    np.max(np.abs(self.action_bounds[action_dim_idx])),
+                    dtype=torch.float32
+                )
+            self.input_bounds = self.input_bounds.to(self.device)
 
     def forward(self, states: torch.Tensor, actions: torch.Tensor) -> torch.Tensor:
         """
@@ -69,22 +83,9 @@ class BNN(nn.Module, ABC):
             torch.Tensor: The expanded input tensor with additional dimensions
                           representing the symmetric complement.
         """
-        # Initialize tensor to store absolute state bound for each state dimension
-        input_bounds = torch.empty(self.state_dim + self.action_dim)
-        for state_dim_idx in range(self.state_dim):
-            input_bounds[state_dim_idx] = torch.tensor(
-                np.max(np.abs(self.state_bounds[state_dim_idx])), 
-                dtype=torch.float32
-            )
-        for action_dim_idx in range(self.action_dim):
-            input_bounds[self.state_dim + action_dim_idx] = torch.tensor(
-                np.max(np.abs(self.action_bounds[action_dim_idx])),
-                dtype=torch.float32
-            )
-        input_bounds = input_bounds.to(self.device)
 
         # Perform input expansion to keep magnitude of input constant
-        transformed_input = torch.tanh(2 * input / input_bounds)
+        transformed_input = torch.tanh(2 * input / self.input_bounds)
         symmetric_complement = torch.sqrt(1 - torch.square(transformed_input))
         expanded_input = torch.cat((transformed_input, symmetric_complement), dim=1)
         return expanded_input

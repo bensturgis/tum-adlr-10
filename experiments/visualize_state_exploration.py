@@ -11,8 +11,8 @@ from utils.visualization_utils import plot_state_space_trajectory
 true_env = TrueReacherEnv()
 HORIZON = 100
 
-exp_idx = 13
-num_iter = 20
+exp_idx = 20
+num_iter = 10
 
 plot_state_space_trajectory(
     sampling_method="Random Exploration",
@@ -20,5 +20,6 @@ plot_state_space_trajectory(
     repetition=0,
     num_al_iterations=num_iter,
     true_env=true_env,
-    horizon=HORIZON
+    horizon=HORIZON,
+    show_plot=False
 )

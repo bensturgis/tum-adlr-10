@@ -178,6 +178,9 @@ class TrueReacherEnv(ReacherEnv):
         dtheta1_new = dtheta1_old + self.time_step * tau1
         dtheta2_new = dtheta2_old + self.time_step * tau2
         self.dtheta = np.array([dtheta1_new, dtheta2_new], dtype=np.float32)
+        # if(dtheta1_new > 10):
+        #     print(dtheta1_old , self.time_step * tau1, dtheta1_new)
+        #     print(self.dtheta)
         theta1_new = theta1_old + self.time_step * dtheta1_new
         theta2_new = theta2_old + self.time_step * dtheta2_new
 
@@ -257,6 +260,10 @@ class TrueReacherEnv(ReacherEnv):
 
         # Compute angular velocities using pseudo-inverse of Jacobian: 
         self.dtheta = np.linalg.pinv(jacobian).dot(velocity_vector)
+        # if(self.dtheta[0] > 10):
+        #     print(velocity_vector)
+        #     print(self.dtheta)
+        #     print("")
 
     def reset(
         self, seed: int = None, options: Dict[str, Any] = None

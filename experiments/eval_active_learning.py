@@ -17,7 +17,7 @@ from sampling_methods.soft_actor_critic import SoftActorCritic
 
 # Hyperparameters for neural network and training
 HIDDEN_SIZE = 72          # Hidden units in the neural network
-NUM_EPOCHS = 25           # Training epochs per iteration
+NUM_EPOCHS = 50           # Training epochs per iteration
 BATCH_SIZE = 50           # Batch size for training
 LEARNING_RATE = 1e-3      # Learning rate for the optimizer
 DEVICE = "cuda"           # PyTorch device for training
@@ -46,8 +46,8 @@ NUM_INITIAL_STATES = 10   # Number of initial states sampled from each trajector
 NUM_PREDICTION_STEPS = 20 # Number of steps for multi-step prediction evaluation (M = 20 in paper)
 
 # Hyperparameters for the active learning evaluation
-NUM_AL_ITERATIONS = 20    # Number of active learning iterations (20 in paper)
-NUM_EVAL_REPETITIONS = 3  # Number of evaluation runs for mean and variance (20 in paper)
+NUM_AL_ITERATIONS = 10    # Number of active learning iterations (20 in paper)
+NUM_EVAL_REPETITIONS = 1  # Number of evaluation runs for mean and variance (20 in paper)
 
 # Initialize the true environment
 # true_env = TrueMassSpringDamperEnv()
@@ -71,25 +71,25 @@ input_expansion = true_env.input_expansion
 #     action_dim=action_dim,
 #     hidden_size=HIDDEN_SIZE
 # )
-dynamics_model = MCDropoutBNN(
-    state_dim=state_dim,
-    action_dim=action_dim,
-    input_expansion=true_env.input_expansion,
-    state_bounds=state_bounds,
-    action_bounds=actions_bounds,
-    hidden_size=HIDDEN_SIZE,
-    drop_prob=DROP_PROB,
-    device=DEVICE,
-)
-# dynamics_model = LaplaceBNN(
+# dynamics_model = MCDropoutBNN(
 #     state_dim=state_dim,
 #     action_dim=action_dim,
 #     input_expansion=true_env.input_expansion,
 #     state_bounds=state_bounds,
 #     action_bounds=actions_bounds,
 #     hidden_size=HIDDEN_SIZE,
+#     drop_prob=DROP_PROB,
 #     device=DEVICE,
 # )
+dynamics_model = LaplaceBNN(
+    state_dim=state_dim,
+    action_dim=action_dim,
+    input_expansion=true_env.input_expansion,
+    state_bounds=state_bounds,
+    action_bounds=actions_bounds,
+    hidden_size=HIDDEN_SIZE,
+    device=DEVICE,
+)
 # learned_env = LearnedMassSpringDamperEnv(model=dynamics_model)
 learned_env = LearnedReacherEnv(model=dynamics_model)
 
