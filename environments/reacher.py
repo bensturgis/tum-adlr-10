@@ -12,9 +12,10 @@ from utils.train_utils import compute_state_bounds
 
 class ReacherEnv(gym.Env, ABC):
     """
-    Abstract base class for a 2-joint Reacher environment whose state is given by
-    s = [cos(theta1), cos(theta2), sin(theta1), sin(theta2), vx, vy].
+    Abstract base class for a 2-joint Reacher environment whose state is:
+        [cos(theta1), cos(theta2), sin(theta1), sin(theta2), dtheta1, dtheta2].
     """
+
     def __init__(self, link_length: float = 0.5) -> None:
         """
         Initialize the Reacher environment.
@@ -26,22 +27,21 @@ class ReacherEnv(gym.Env, ABC):
         self.name = "Reacher"
 
         # Environment uses a 6D state as described:
-        # [cos(theta1), cos(theta2), sin(theta1), sin(theta2), vx, vy]
+        # [cos(theta1), cos(theta2), sin(theta1), sin(theta2), dtheta1, dtheta2]
         self.state = np.zeros(6, dtype=np.float32)
         self.state_dim = 6
 
-        # Define the state dimension names
         self.state_dim_names = {
             0: "cos(theta1)",
             1: "cos(theta2)",
             2: "sin(theta1)",
             3: "sin(theta2)",
-            4: "velocity_x",
-            5: "velocity_y"
+            4: "dtheta1",
+            5: "dtheta2",
         }
 
-        # Two torques, each in [-0.2, 0.2]
-        torque_limit = 0.2
+        # Two torques for both joints
+        torque_limit = 0.3
         self.action_space = spaces.Box(
             low=-torque_limit,
             high=torque_limit,
@@ -50,10 +50,10 @@ class ReacherEnv(gym.Env, ABC):
         )
         self.action_dim = 2
 
-        # cos/sin will be in [-1,1] and vx, vy are unbounded
+        # cos/sin are in [-1,1], angular velocities are unbounded
         self.observation_space = spaces.Box(
             low=np.array([-1.0, -1.0, -1.0, -1.0, -np.inf, -np.inf], dtype=np.float32),
-            high=np.array([ 1.0,  1.0,  1.0,  1.0,  np.inf,  np.inf], dtype=np.float32),
+            high=np.array([1.0, 1.0, 1.0, 1.0, np.inf, np.inf], dtype=np.float32),
             dtype=np.float32
         )
 
@@ -114,6 +114,7 @@ class ReacherEnv(gym.Env, ABC):
         # Draw links
         pygame.draw.line(self.screen, (0, 0, 0), origin, joint, 4)
         pygame.draw.line(self.screen, (0, 0, 0), joint, end_effector, 4)
+
         # Draw joints and end-effector
         pygame.draw.circle(self.screen, (255, 0, 0), origin, 5)
         pygame.draw.circle(self.screen, (0, 255, 0), joint, 5)
@@ -139,18 +140,18 @@ class ReacherEnv(gym.Env, ABC):
 
 class TrueReacherEnv(ReacherEnv):
     """
-    The "true" reacher environment, simulating the real system dynamics.
-
-    This environment models the physical reacher with exact parameters, 
-    serving as the ground truth for comparison with the learned environment.
+    The "true" reacher environment, simulating the real system dynamics
+    with angular velocities in the state.
     """
+
     def __init__(
-        self, link_length: float = 0.5, time_step: float = 0.2, noise_var: float = 0.0
+        self, link_length: float = 0.5, time_step: float = 0.15, noise_var: float = 0.0
     ) -> None:
         """
-        Initialize "true" reacher environment.
+        Initialize the true Reacher environment.
 
         Args:
+            link_length (float): Length of each link.
             time_step (float): Discretization time step.
             noise_var (float): Variance of Gaussian noise added to the state.
         """
@@ -158,29 +159,27 @@ class TrueReacherEnv(ReacherEnv):
         self.time_step = time_step
         self.noise_var = noise_var
 
-        # Keep track of angular velocities [dtheta1, dtheta2] to simplify calculations
-        # of dynamics
-        self.dtheta = np.zeros(2, dtype=np.float32)
-
     def step(
-        self, action: np.array
+        self, action: np.ndarray
     ) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
-        # Parse the old angles and angular velocities
-        cos_t1, cos_t2, sin_t1, sin_t2, _, _ = self.state
+        """
+        Evolve the system by one time step using the applied torques (action).
+        The state is [cos(t1), cos(t2), sin(t1), sin(t2), dtheta1, dtheta2].
+        """
+        # Extract angles and angular velocities from the current state
+        cos_t1, cos_t2, sin_t1, sin_t2, dtheta1_old, dtheta2_old = self.state
+
         theta1_old = np.arctan2(sin_t1, cos_t1)
         theta2_old = np.arctan2(sin_t2, cos_t2)
-        dtheta1_old, dtheta2_old = self.dtheta
 
-        # Simple torque integration: 
-        #    dtheta_i_new = dtheta_i_old + dt * tau_i
-        #    theta_i_new  = theta_i_old  + dt * dtheta_i_new
+        # Clip the action to valid torque range
         tau1, tau2 = np.clip(action, self.action_space.low, self.action_space.high)
+
+        # Integrate angular velocities:
         dtheta1_new = dtheta1_old + self.time_step * tau1
         dtheta2_new = dtheta2_old + self.time_step * tau2
-        self.dtheta = np.array([dtheta1_new, dtheta2_new], dtype=np.float32)
-        # if(dtheta1_new > 10):
-        #     print(dtheta1_old , self.time_step * tau1, dtheta1_new)
-        #     print(self.dtheta)
+
+        # Integrate angles:
         theta1_new = theta1_old + self.time_step * dtheta1_new
         theta2_new = theta2_old + self.time_step * dtheta2_new
 
@@ -190,17 +189,19 @@ class TrueReacherEnv(ReacherEnv):
         cos_t2_new = np.cos(theta2_new)
         sin_t2_new = np.sin(theta2_new)
 
-        # Recompute new (vx, vy) from forward kinematics: 
-        #    [vx, vy]^T = J(theta_new) * [dtheta1_new, dtheta2_new]^T
-        J_new = self.compute_jacobian(theta1_new, theta2_new)
-        v_new = J_new.dot(np.array([dtheta1_new, dtheta2_new], dtype=np.float32))
-        vx_new, vy_new = v_new
+        # Optionally add noise
+        if self.noise_var > 0.0:
+            dtheta1_new += np.random.normal(0, np.sqrt(self.noise_var))
+            dtheta2_new += np.random.normal(0, np.sqrt(self.noise_var))
 
-        # Update the state
+        # Update the environment state
         self.state = np.array([
-            cos_t1_new, cos_t2_new,
-            sin_t1_new, sin_t2_new,
-            vx_new, vy_new
+            cos_t1_new,
+            cos_t2_new,
+            sin_t1_new,
+            sin_t2_new,
+            dtheta1_new,
+            dtheta2_new,
         ], dtype=np.float32)
 
         # Reward is not needed for the true system
@@ -212,154 +213,77 @@ class TrueReacherEnv(ReacherEnv):
 
         return self.state, reward, terminated, truncated, {}
 
-    def compute_jacobian(self, theta1: float, theta2: float) -> np.ndarray:
-        """
-        Computes the Jacobian matrix of the end-effector position 
-          x = l1*cos(t1) + l2*cos(t1 + t2)
-          y = l1*sin(t1) + l2*sin(t1 + t2)
-        with respect to the joint angles.
-
-        Args:
-            theta1 (float): Angle of the first joint (in radians).
-            theta2 (float): Angle of the second joint (in radians).
-
-        Returns:
-            np.ndarray: A 2x2 Jacobian matrix where:
-                J = [[dx/dt1, dx/dt2],
-                    [dy/dt1, dy/dt2]]
-        """
-        dxdt1 = -self.link_length * np.sin(theta1) - self.link_length * np.sin(theta1 + theta2)
-        dxdt2 = -self.link_length * np.sin(theta1 + theta2)
-        dydt1 =  self.link_length * np.cos(theta1) + self.link_length * np.cos(theta1 + theta2)
-        dydt2 =  self.link_length * np.cos(theta1 + theta2)
-        return np.array([[dxdt1, dxdt2],
-                         [dydt1, dydt2]], dtype=np.float32)
-
     def set_state(self, state: np.ndarray) -> None:
         """
-        Sets the environment's state and updates the angular velocities based on the Jacobian.
-
-        Args:
-            state (np.ndarray): A numpy array representing the state 
-                                [cos(theta1), cos(theta2), sin(theta1), sin(theta2), vx, vy].
+        Sets the environment's state directly. The expected state is:
+          [cos(theta1), cos(theta2), sin(theta1), sin(theta2), dtheta1, dtheta2].
         """
-        self.state = state
-
-        # Extract cosine and sine components
-        cos_t1, cos_t2, sin_t1, sin_t2, vx, vy = self.state
-
-        # Compute the actual angles from sine and cosine
-        theta1 = np.arctan2(sin_t1, cos_t1)
-        theta2 = np.arctan2(sin_t2, cos_t2)
-
-        # Compute the Jacobian matrix at the current angles
-        jacobian = self.compute_jacobian(theta1, theta2)
-
-        # Form the velocity vector
-        velocity_vector = np.array([vx, vy], dtype=np.float32)
-
-        # Compute angular velocities using pseudo-inverse of Jacobian: 
-        self.dtheta = np.linalg.pinv(jacobian).dot(velocity_vector)
-        # if(self.dtheta[0] > 10):
-        #     print(velocity_vector)
-        #     print(self.dtheta)
-        #     print("")
+        self.state = state.astype(np.float32)
 
     def reset(
         self, seed: int = None, options: Dict[str, Any] = None
     ) -> Tuple[np.ndarray, Dict]:
         """
-        Resets the environment to its initial state.
-
-        Args:
-            seed (int, optional): Included for compatibility with Stable-Baselines3.
-            options (Dict[str, Any]): Included for compatibility with Stable-Baselines3.
+        Resets the environment to an initial configuration.
 
         Returns:
             Tuple[np.ndarray, dict]: Initial state and additional reset info.
         """
+        super().reset(seed=seed)
+        # For example, start at theta1=0, theta2=0, with zero velocities
         self.state = np.array([1.0, 1.0, 0.0, 0.0, 0.0, 0.0], dtype=np.float32)
-        self.dtheta = np.zeros(2, dtype=np.float32)
         return self.state, {}
-    
-    def get_action_bounds(self) -> Dict[int, np.array]:
+
+    def get_action_bounds(self) -> Dict[int, np.ndarray]:
         """
         Retrieves the action bounds for each action dimension.
 
         Returns:
-            Dict[int, np.ndarray]: Dictionary mapping action dimension index to their ,
-                                   [min, max] bounds.
+            Dict[int, np.ndarray]: Dictionary mapping action dimension index to [min, max].
         """
-        # Extract action bounds for all dimensions
         action_bounds = {}
         for dim_idx in range(self.action_dim):
             action_bounds[dim_idx] = np.array(
                 [self.action_space.low[dim_idx], self.action_space.high[dim_idx]],
-                np.float32
+                dtype=np.float32
             )
-
         return action_bounds
 
     def get_state_bounds(
         self, horizon: int, bound_shrink_factor: float
-    ) -> Dict[int, np.array]:
+    ) -> Dict[int, np.ndarray]:
         """
         Computes and retrieves state bounds over the specified horizon.
-
-        Args:
-            horizon (int): Number of steps to simulate for each action.
-            bound_shrink_factor (float): Factor by which to shrink maximum/minimum velocity.
-
-        Returns:
-            Dict[int, np.array]: Dictionary mapping state dimension index to their
-                                 sampling bounds.
+        For cos/sin, we fix [-1,1]. For angular velocities, we can compute
+        some plausible bounds via a short simulation, or set manually.
         """
         adjusted_state_bounds = {}
 
-        # Set fixed bounds for angle dimensions
+        # Angles (cos/sin) are always in [-1, 1]
         for dim_idx in [0, 1, 2, 3]:
             adjusted_state_bounds[dim_idx] = np.array([-1.0, 1.0], dtype=np.float32)
 
-        # Compute and shrink raw minimum/maximum state bounds for velocity dimension 
+        # If desired, you can compute actual dtheta bounds with a small rollout
+        # or just place a large range. Below is an example approach:
+        # We'll use compute_state_bounds, but remember it won't directly apply to cos/sin-based states.
         state_bounds = compute_state_bounds(env=self, horizon=horizon)
-        for dim_idx in [4, 5]:
+        for dim_idx in [4, 5]:  # dtheta1, dtheta2
             adjusted_state_bounds[dim_idx] = bound_shrink_factor * state_bounds[dim_idx]
 
         return adjusted_state_bounds
-    
+
     def sample_states(
-        self, num_samples: int, sampling_bounds: Dict[int, np.array]
-    ) -> np.array:
+        self, num_samples: int, sampling_bounds: Dict[int, np.ndarray]
+    ) -> np.ndarray:
         """
-        Samples a specified number of states.
-
-        Args:
-            num_samples (int): Number of states to sample.
-            sampling_bounds (Dict[int, np.array]): Bounds for each state dimension, 
-                where each entry is [min, max].
-
-        Returns:
-            np.array: An array of shape (num_samples, state_dim) containing the sampled states.
+        Samples a specified number of states. In this version, we sample random angles
+        and random angular velocities within the provided bounds.
         """
-        # Initialize the output array
         sampled_states = np.zeros((num_samples, self.state_dim), dtype=np.float32)
 
-        # Uniformly sample angles theta1 from [-π, π]
+        # Sample angles theta1, theta2 uniformly from [-π, π]
         theta1_samples = np.random.uniform(-np.pi, np.pi, size=num_samples)
-        
-        # Uniformly sample angles theta2 from [-π, π]
-        theta2_samples = np.empty(num_samples, dtype=float)
-        # Resample any values that fall within epsilon of -π, 0, or π to avoid singular configurations
-        excluded_points = [-np.pi, 0.0, np.pi]
-        epsilon = 1e-3
-        
-        for i in range(num_samples):
-            while True:
-                candidate = np.random.uniform(-np.pi, np.pi)
-                # Check if the candidate is within epsilon of any excluded point
-                if not any(abs(candidate - point) < epsilon for point in excluded_points):
-                    theta2_samples[i] = candidate
-                    break
+        theta2_samples = np.random.uniform(-np.pi, np.pi, size=num_samples)
 
         # Convert angles to cosine/sine
         cos_t1 = np.cos(theta1_samples)
@@ -367,19 +291,19 @@ class TrueReacherEnv(ReacherEnv):
         cos_t2 = np.cos(theta2_samples)
         sin_t2 = np.sin(theta2_samples)
 
-        # Uniformely sample velocities within specified bounds
-        vx_low, vx_high = sampling_bounds[4]
-        vy_low, vy_high = sampling_bounds[5]
-        velocity_x_samples = np.random.uniform(vx_low, vx_high, size=num_samples)
-        velocity_y_samples = np.random.uniform(vy_low, vy_high, size=num_samples)
+        # Sample dtheta1, dtheta2 from the sampling bounds
+        dtheta1_low, dtheta1_high = sampling_bounds[4]
+        dtheta2_low, dtheta2_high = sampling_bounds[5]
+        dtheta1 = np.random.uniform(-0.2, 0.2, size=num_samples)
+        dtheta2 = np.random.uniform(-0.2, 0.2, size=num_samples)
 
-        # Combine everything into the sampled states array
+        # Fill in
         sampled_states[:, 0] = cos_t1
         sampled_states[:, 1] = cos_t2
         sampled_states[:, 2] = sin_t1
         sampled_states[:, 3] = sin_t2
-        sampled_states[:, 4] = velocity_x_samples
-        sampled_states[:, 5] = velocity_y_samples
+        sampled_states[:, 4] = dtheta1
+        sampled_states[:, 5] = dtheta2
 
         return sampled_states
 
@@ -397,15 +321,13 @@ class TrueReacherEnv(ReacherEnv):
 
 class LearnedReacherEnv(ReacherEnv, LearnedEnv):
     """
-    A reacher environment with a learned dynamics model.
-    
-    This environment simulates the reacher's dynamics using a learned model
-    (e.g., Bayesian Neural Network or Feedforward Neural Network) to predict
-    the next state and reward.
+    A reacher environment with a learned dynamics model. The state is
+    [cos(theta1), cos(theta2), sin(theta1), sin(theta2), dtheta1, dtheta2].
     """
+
     def __init__(self, model: Union[FeedforwardNN, BNN]) -> None:
         """
-        Initialize "learned" reacher environment.
+        Initialize the learned Reacher environment.
         """
         LearnedEnv.__init__(self, model=model)
         ReacherEnv.__init__(self)
@@ -413,26 +335,22 @@ class LearnedReacherEnv(ReacherEnv, LearnedEnv):
     def step(
         self, action: np.ndarray
     ) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
+        # Defer to LearnedEnv.step(), which will use the model to predict the next state.
         return LearnedEnv.step(self, action)
     
     def set_state(self, state: np.ndarray) -> None:
+        # Defer to LearnedEnv.set_state()
         return LearnedEnv.set_state(self, state)
 
     def reset(
         self, seed: int = None, options: Dict[str, Any] = None
     ) -> Tuple[np.ndarray, Dict]:
         """
-        Resets the environment to its initial state.
-
-        Args:
-            seed (int, optional): Included for compatibility with Stable-Baselines3.
-            options (Dict[str, Any]): Included for compatibility with Stable-Baselines3.
-
-        Returns:
-            Tuple[np.ndarray, dict]: Initial state and additional reset info.
+        Reset the learned environment to a default state (theta=0, dtheta=0).
         """
+        super().reset(seed=seed)
         self.state = np.array([1.0, 1.0, 0.0, 0.0, 0.0, 0.0], dtype=np.float32)
         return self.state, {}
 
-    def params_to_dict(self) -> Dict[str, str]:
+    def params_to_dict(self) -> Dict[str, Any]:
         return LearnedEnv.params_to_dict(self)

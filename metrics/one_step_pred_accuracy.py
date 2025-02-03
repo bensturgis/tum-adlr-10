@@ -62,11 +62,7 @@ class OneStepPredictiveAccuracyEvaluator(EvaluationMetric):
                 continue
             # Compute squared error
             squared_error = np.sum((pred_next_state - true_next_state) ** 2)
-            squared_errors.append(squared_error)
-            # if squared_error > 10:
-            #     print(pred_next_state,"\n", true_next_state,"\n", (pred_next_state - true_next_state))
-            # else:
-            #     print("")
+            squared_errors.append(squared_error) 
 
         # Compute RMSE
         rmse = np.sqrt(np.mean(squared_errors))

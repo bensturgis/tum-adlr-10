@@ -7,6 +7,7 @@ from metrics.evaluation_metric import EvaluationMetric
 from sampling_methods.sampling_method import SamplingMethod
 from sampling_methods.random_exploration import RandomExploration
 from utils.train_utils import combine_datasets, create_dataloader, create_test_dataset
+from utils.visualization_utils import plot_state_distribution
 from typing import Dict, List
 from pathlib import Path
 import json
@@ -169,6 +170,13 @@ class ActiveLearningEvaluator():
                         # Store the newly sampled state trajectory
                         state_trajectory = torch.cat(new_dataset.tensors[:], dim=1).numpy()  # shape: (horizon, state_dim)
                         state_trajectories[sampling_method.name][repetition][iteration + 1, :, :] = state_trajectory
+
+        # for dim_idx in range(state_dim):
+        #     plot_state_distribution(
+        #         dataset=total_dataset,
+        #         dim_idx=dim_idx,
+        #         state_dim_names=self.true_env.state_dim_names
+        #     )
 
         mean_accuracies = {}
         std_accuracies = {}

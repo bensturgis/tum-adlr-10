@@ -391,3 +391,38 @@ def plot_reacher_uncertainty(
         plt.show()
     else:
         plt.savefig(experiment_path / f'state_space_pred_var_rep{repetition}_iter{num_al_iterations}.png', dpi=300, bbox_inches='tight')
+
+def plot_state_distribution(
+    dataset: TensorDataset, 
+    dim_idx: int, 
+    state_dim_names: Dict[int, str]
+) -> None:
+    """
+    Plots a histogram of the values in the dataset for the specified dimension index.
+    
+    Args:
+        dataset (TensorDataset): A dataset containing states.
+        dim_idx (int): Index of the state dimension to plot.
+        state_dim_names (Dict[int, str]): A dictionary mapping dimension indices
+            to human-readable dimension names.
+    """    
+    # Extract the first tensor in the dataset, which should contain states of shape (N, state_dim)
+    states = dataset.tensors[0]  # shape: [N x state_dim]
+
+    # Convert the requested dimension to a NumPy array
+    dim_data = states[:, dim_idx].numpy()
+    
+    # Create a label from the dim index or use a fallback if not found
+    dim_label = state_dim_names.get(dim_idx, f"Dimension {dim_idx}")
+    
+    # Plot the histogram
+    plt.figure(figsize=(6,4))
+    low_percentile = np.percentile(dim_data, 2.5)
+    high_percentile = np.percentile(dim_data, 97.5)
+    plt.hist(dim_data, bins=50, range=(low_percentile, high_percentile))
+    plt.title(f"Distribution of {dim_label}")
+    plt.xlabel(dim_label)
+    plt.ylabel("Frequency")
+    plt.grid(True, linestyle='--', alpha=0.5)
+    plt.tight_layout()
+    plt.show()

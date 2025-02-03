@@ -2,7 +2,10 @@ import gymnasium as gym
 import numpy as np
 import torch
 from torch.utils.data import TensorDataset, DataLoader
-from typing import Dict, List, Tuple
+from typing import Dict, Tuple
+
+from sampling_methods.random_exploration import RandomExploration
+from utils.visualization_utils import plot_state_distribution
 
 def create_dataloader(dataset: TensorDataset, batch_size: int) -> DataLoader:
     """
@@ -134,4 +137,19 @@ def create_test_dataset(
     next_states_tensor = torch.from_numpy(np.array(valid_next_states)).float()
 
     dataset = TensorDataset(states_tensor, actions_tensor, next_states_tensor)
+
+    # for dim_idx in range(6):
+    #     plot_state_distribution(
+    #         dataset=dataset,
+    #         dim_idx=dim_idx,
+    #         state_dim_names=true_env.state_dim_names
+    #     )
+
+    # random_exploration = RandomExploration(horizon=100)
+    # dataset = random_exploration.sample(true_env)
+    # for _ in range(15):
+    #     new_dataset = random_exploration.sample(true_env)
+
+    #     dataset = combine_datasets(dataset, new_dataset)
+    
     return dataset
