@@ -90,7 +90,7 @@ def compute_state_bounds(env: gym.Env, horizon: int) -> Dict[int, np.array]:
     return state_bounds
 
 def create_test_dataset(
-    true_env: gym.Env, sampling_bounds: Dict[int, np.array], num_samples: int
+    true_env: gym.Env, num_samples: int, horizon: int
 ) -> TensorDataset:
     """
     Samples states and actions from a true environment, computes their next states,
@@ -98,16 +98,15 @@ def create_test_dataset(
 
     Args:
         true_env (gym.Env): The true environment.
-        sampling_bounds (Dict[int, np.array]): Sampling bounds for each state dimension, 
-            specifying [min, max] values.
         num_samples (int): Number of samples to generate.
+        horizon (int): Number of simulation steps. Required for calculating state bounds.
 
     Returns:
         TensorDataset: A PyTorch dataset containing (state, action, next_state) triples
                        for valid transitions.
     """
     # Sample states
-    sampled_states = true_env.sample_states(num_samples, sampling_bounds)
+    sampled_states = true_env.sample_states(num_samples, horizon)
     
     # Sample actions from the environment's action space
     sampled_actions = np.array([true_env.action_space.sample() for _ in range(num_samples)])

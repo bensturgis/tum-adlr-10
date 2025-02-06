@@ -9,7 +9,7 @@ class MultiStepPredictiveAccuracyEvaluator(EvaluationMetric):
     Evaluates the multi-step predictive accuracy of a learned environment against a true environment.
     """
     def __init__(
-        self, true_env: gym.Env, learned_env: gym.Env, sampling_bounds: Dict[int, np.array], 
+        self, true_env: gym.Env, learned_env: gym.Env, horizon: int,
         num_trajectories: int, trajectory_horizon: int, num_initial_states: int,
         num_prediction_steps: int
     ) -> None:
@@ -20,9 +20,7 @@ class MultiStepPredictiveAccuracyEvaluator(EvaluationMetric):
         Args:
             true_env (gym.Env): The true environment used to generate trajectories.
             learned_env (gym.Env): The learned environment whose predictions are to be evaluated.
-            sampling_bounds (Dict[int, np.array]): Dictionary specifying [min, max] values for
-                                                   each state dimension of the dynamical system for sampling
-                                                   the start states of the trajectories.
+            horizon (int): Number of simulation steps. Required for calculating state bounds.
             num_trajectories (N_2) (int): Number of full trajectories to roll out in the true environment.
             trajectory_horizon (int): Length of the full trajectories.
             num_initial_states (N_3) (int): Number of initial states to sample from each trajectory
@@ -30,7 +28,6 @@ class MultiStepPredictiveAccuracyEvaluator(EvaluationMetric):
             num_prediction_steps (M) (int): Number of steps to predict ahead in the learned environment.
         """
         self.learned_env = learned_env
-        self.sampling_bounds = sampling_bounds
         self.num_trajectories = num_trajectories
         self.num_prediction_steps = num_prediction_steps
         self.trajectory_horizon = trajectory_horizon
@@ -44,7 +41,7 @@ class MultiStepPredictiveAccuracyEvaluator(EvaluationMetric):
         # Sample start states
         start_states = true_env.sample_states(
             num_samples=self.num_trajectories,
-            sampling_bounds=sampling_bounds
+            horizon=horizon
         )
 
         # Generate trajectories by rolling out in the true environment starting from
@@ -150,6 +147,5 @@ class MultiStepPredictiveAccuracyEvaluator(EvaluationMetric):
             "trajectory_horizon": self.trajectory_horizon,
             "num_initial_states": self.num_initial_states,
             "num_prediction_steps": self.num_prediction_steps,
-            "sampling_bounds": {k: str(v) for k, v in self.sampling_bounds.items()},
         }
         return parameter_dict

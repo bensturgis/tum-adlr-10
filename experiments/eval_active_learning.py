@@ -47,7 +47,7 @@ NUM_PREDICTION_STEPS = 20 # Number of steps for multi-step prediction evaluation
 
 # Hyperparameters for the active learning evaluation
 NUM_AL_ITERATIONS = 20    # Number of active learning iterations (20 in paper)
-NUM_EVAL_REPETITIONS = 1  # Number of evaluation runs for mean and variance (20 in paper)
+NUM_EVAL_REPETITIONS = 3  # Number of evaluation runs for mean and variance (20 in paper)
 
 # Initialize the true environment
 # true_env = TrueMassSpringDamperEnv()
@@ -55,7 +55,7 @@ true_env = TrueReacherEnv(link_length=1.0)
 
 # Get state and action bounds for the dynamical system over the specified horizon
 # to perform input expansion if necessary and keep magnitude of the input constant
-state_bounds = true_env.get_state_bounds(horizon=HORIZON, bound_shrink_factor=1.0)
+state_bounds = true_env.get_state_bounds(horizon=HORIZON)
 actions_bounds = true_env.get_action_bounds()
 
 # Extract state and action dimension
@@ -107,23 +107,17 @@ soft_actor_critic = SoftActorCritic(
 )
 sampling_methods = [random_exploration]
 
-# Extract the minimum and maximum state bounds for sampling data to evaluate the
-# performance of the learned model with the one-step and multi-step predictive accuracy
-# Choose bound_shrink_factor=0.06 for reacher and bound_shrink_factor=0.5 for mass-spring-damper system
-one_step_sampling_bounds = true_env.get_state_bounds(horizon=HORIZON, bound_shrink_factor=0.06)
-multi_step_sampling_bounds = true_env.get_state_bounds(horizon=HORIZON, bound_shrink_factor=0.06)
-
 # Initialize the evluation metrics 
 one_step_pred_acc_eval = OneStepPredictiveAccuracyEvaluator(
     true_env=true_env,
     learned_env=learned_env,
-    sampling_bounds=one_step_sampling_bounds,
     num_samples=NUM_SAMPLES,
+    horizon=HORIZON
 ) 
 multi_step_pred_acc_eval = MultiStepPredictiveAccuracyEvaluator(
     true_env=true_env,
     learned_env=learned_env,
-    sampling_bounds=multi_step_sampling_bounds,
+    horizon=HORIZON,
     num_trajectories=NUM_TRAJECTORIES,
     trajectory_horizon=TRAJCETORY_LENGTH,
     num_initial_states=NUM_INITIAL_STATES,

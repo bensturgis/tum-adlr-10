@@ -57,6 +57,10 @@ class ReacherEnv(gym.Env, ABC):
             dtype=np.float32
         )
 
+        # Factor by which to shrink maximum/minimum state bounds to find sampling bounds for creating
+        # a test set
+        self.bound_shrink_factor = 0.06
+
         # Input expansion disabled since the magnitude of the state remains approximately constant
         self.input_expansion = False
 
@@ -250,12 +254,18 @@ class TrueReacherEnv(ReacherEnv):
         return action_bounds
 
     def get_state_bounds(
-        self, horizon: int, bound_shrink_factor: float
+        self, horizon: int, bound_shrink_factor: float = 1.0
     ) -> Dict[int, np.ndarray]:
         """
         Computes and retrieves state bounds over the specified horizon.
-        For cos/sin, we fix [-1,1]. For angular velocities, we can compute
-        some plausible bounds via a short simulation, or set manually.
+        
+        Args:
+            horizon (int): Number of steps to simulate.
+            bound_shrink_factor (float): Factor by which to shrink maximum/minimum state bounds.
+
+        Returns:
+            Dict[int, np.array]: Dictionary mapping state dimension index to their
+                                 sampling bounds.
         """
         adjusted_state_bounds = {}
 
@@ -263,22 +273,32 @@ class TrueReacherEnv(ReacherEnv):
         for dim_idx in [0, 1, 2, 3]:
             adjusted_state_bounds[dim_idx] = np.array([-1.0, 1.0], dtype=np.float32)
 
-        # If desired, you can compute actual dtheta bounds with a small rollout
-        # or just place a large range. Below is an example approach:
-        # We'll use compute_state_bounds, but remember it won't directly apply to cos/sin-based states.
+        # Compute the raw minimum/maximum state bounds
         state_bounds = compute_state_bounds(env=self, horizon=horizon)
         for dim_idx in [4, 5]:  # dtheta1, dtheta2
+            # Apply the shrink factor to the minimum/maximum state bounds
             adjusted_state_bounds[dim_idx] = bound_shrink_factor * state_bounds[dim_idx]
 
         return adjusted_state_bounds
 
     def sample_states(
-        self, num_samples: int, sampling_bounds: Dict[int, np.ndarray]
+        self, num_samples: int, horizon: int
     ) -> np.ndarray:
         """
-        Samples a specified number of states. In this version, we sample random angles
-        and random angular velocities within the provided bounds.
+        Samples a specified number of states.
+
+        Args:
+            num_samples (int): Number of states to sample. 
+            horizon (int): Number of simulation steps. Required for calculating state bounds.
+
+        Returns:
+            np.array: An array of shape (num_samples, state_dim) containing the sampled states.
         """
+        # Bounds for each state dimension, where each entry is [min, max]
+        sampling_bounds = self.get_state_bounds(
+            horizon=horizon, bound_shrink_factor=self.bound_shrink_factor
+        )
+
         sampled_states = np.zeros((num_samples, self.state_dim), dtype=np.float32)
 
         # Sample angles theta1, theta2 uniformly from [-π, π]
@@ -314,7 +334,8 @@ class TrueReacherEnv(ReacherEnv):
         parameter_dict = {
             "name": self.name,
             "link_length": self.link_length,
-            "time_step": self.time_step
+            "time_step": self.time_step,
+            "bound_shrink_factor": self.bound_shrink_factor
         }
         return parameter_dict
 

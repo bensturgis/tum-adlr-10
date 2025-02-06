@@ -46,6 +46,10 @@ class MassSpringDamperEnv(gym.Env, ABC):
         # Observation space: State variables [position, velocity] with unbounded range
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(2,), dtype=np.float32)
 
+        # Factor by which to shrink maximum/minimum state bounds to find sampling bounds for creating
+        # a test set
+        self.bound_shrink_factor = 0.5
+
         # Ensures the input magnitude to the Bayesian neural network remains constant
         self.input_expansion = True
 
@@ -229,13 +233,13 @@ class TrueMassSpringDamperEnv(MassSpringDamperEnv):
         self.state = state
     
     def get_state_bounds(
-        self, horizon: int, bound_shrink_factor: float = 0.5
+        self, horizon: int, bound_shrink_factor: float = 1.0
     ) -> Dict[int, np.array]:
         """
         Computes and retrieves state bounds over the specified horizon.
         
         Args:
-            horizon (int): Number of steps to simulate for each action.
+            horizon (int): Number of steps to simulate.
             bound_shrink_factor (float): Factor by which to shrink maximum/minimum state bounds.
 
         Returns:
@@ -253,19 +257,23 @@ class TrueMassSpringDamperEnv(MassSpringDamperEnv):
         return adjusted_state_bounds
     
     def sample_states(
-        self, num_samples: int, sampling_bounds: Dict[int, np.array]
+        self, num_samples: int, horizon: int
     ) -> np.array:
         """
         Samples a specified number of states.
 
         Args:
             num_samples (int): Number of states to sample.
-            sampling_bounds (Dict[int, np.array]): Bounds for each state dimension, 
-                where each entry is [min, max].
+            horizon (int): Number of simulation steps. Required for calculating state bounds.
 
         Returns:
             np.array: An array of shape (num_samples, state_dim) containing the sampled states.
         """
+        # Bounds for each state dimension, where each entry is [min, max]
+        sampling_bounds = self.get_state_bounds(
+            horizon=horizon, bound_shrink_factor=self.bound_shrink_factor
+        )
+        
         # Initialize arrays to store lower and upper bounds for each state dimension
         state_low = np.empty(self.state_dim)
         state_high = np.empty(self.state_dim)
@@ -295,6 +303,7 @@ class TrueMassSpringDamperEnv(MassSpringDamperEnv):
             "time_step": self.time_step,
             "nonlinear": self.nonlinear,
             "noise_var": self.noise_var,
+            "bound_shrink_factor": self.bound_shrink_factor
         }
         return parameter_dict
 

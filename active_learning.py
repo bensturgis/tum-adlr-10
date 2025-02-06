@@ -89,12 +89,9 @@ class ActiveLearningEvaluator():
             assert horizon == sampling_method.horizon, (
                 "All sampling methods need to have the same horizon for comparison."
             )
-        
-        # Extract the minimum and maximum state values the environment can reach for the given horizon
-        sampling_bounds = self.true_env.get_state_bounds(horizon=horizon, bound_shrink_factor=0.1)
 
         # Create dataset and dataloader of (state, action, next_state) samples from the true environment
-        test_dataset = create_test_dataset(true_env=self.true_env, num_samples=1250, sampling_bounds=sampling_bounds)
+        test_dataset = create_test_dataset(true_env=self.true_env, num_samples=1250, horizon=horizon)
         test_dataloader = create_dataloader(dataset=test_dataset, batch_size=self.batch_size)
 
         for sampling_method in self.sampling_methods:
