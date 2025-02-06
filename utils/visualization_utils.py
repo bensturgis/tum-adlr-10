@@ -299,8 +299,8 @@ def plot_reacher_uncertainty(
     T2_flat = T2.ravel()
 
     # calculate predictive variance for each point
-    velocity_x = np.linspace(state_bounds[4][0], state_bounds[4][1], pixels_per_other_axes)
-    velocity_y = np.linspace(state_bounds[5][0], state_bounds[5][1], pixels_per_other_axes)
+    velocity_x = np.linspace(-0.15, 0.15, pixels_per_other_axes)
+    velocity_y = np.linspace(-0.15, 0.15, pixels_per_other_axes)
     action_1 = np.linspace(action_bounds[0][0], action_bounds[0][1], pixels_per_other_axes)
     action_2 = np.linspace(action_bounds[1][0], action_bounds[0][1], pixels_per_other_axes)
     redundant_axes = [velocity_x, velocity_y, action_1, action_2] # list for recusion

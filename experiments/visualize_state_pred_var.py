@@ -70,7 +70,7 @@ dynamics_model = LaplaceBNN(
     hidden_size=HIDDEN_SIZE,
     device=DEVICE,
 )
-exp_idx = 20
+exp_idx = 21
 num_iter = 2
 plot_reacher_uncertainty(
     experiment=exp_idx,

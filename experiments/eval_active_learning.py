@@ -25,15 +25,15 @@ DROP_PROB = 0.1           # Dropout probability for the bayesian neural network
 
 # General hyperparameters for sampling method
 # Set HORIZON = 100 for reacher environment to ensure exploration of theta angles in range [-π, π]
-HORIZON = 100              # Trajectory time horizon
+HORIZON = 50              # Trajectory time horizon
 
 # Hyperparameters for random sampling shooting
-MPC_HORIZON = 20 # Number of steps (H) in each sampled action sequence (H = 10 in paper) / Set H = 0 to discard MPC
+MPC_HORIZON = 30 # Number of steps (H) in each sampled action sequence (H = 10 in paper) / Set H = 0 to discard MPC
 NUM_ACTION_SEQ = 2000 # Number of action sequences (K) sampled at each time step (K = 20000 in paper)
 NUM_PARTICLES = 100 # The number of particles for Monte Carlo sampling during performance evaluation
 
 # Hyperparamters for the Soft Actor-Critic (SAC)
-TOTAL_TIMESTEPS = 40000 # The total number of timesteps to train the SAC in each active learning iteration
+TOTAL_TIMESTEPS = 30000 # The total number of timesteps to train the SAC in each active learning iteration
 
 # Hyperparameters for one-step predictive accuracy
 NUM_SAMPLES = 1250        # Number of (state, action, next_state) samples (N_1 = 1250 in paper)
@@ -46,8 +46,8 @@ NUM_INITIAL_STATES = 10   # Number of initial states sampled from each trajector
 NUM_PREDICTION_STEPS = 20 # Number of steps for multi-step prediction evaluation (M = 20 in paper)
 
 # Hyperparameters for the active learning evaluation
-NUM_AL_ITERATIONS = 20    # Number of active learning iterations (20 in paper)
-NUM_EVAL_REPETITIONS = 5  # Number of evaluation runs for mean and variance (20 in paper)
+NUM_AL_ITERATIONS = 5    # Number of active learning iterations (20 in paper)
+NUM_EVAL_REPETITIONS = 1  # Number of evaluation runs for mean and variance (20 in paper)
 
 # Initialize the true environment
 # true_env = TrueMassSpringDamperEnv()
@@ -71,25 +71,25 @@ input_expansion = true_env.input_expansion
 #     action_dim=action_dim,
 #     hidden_size=HIDDEN_SIZE
 # )
-dynamics_model = MCDropoutBNN(
-    state_dim=state_dim,
-    action_dim=action_dim,
-    input_expansion=true_env.input_expansion,
-    state_bounds=state_bounds,
-    action_bounds=actions_bounds,
-    hidden_size=HIDDEN_SIZE,
-    drop_prob=DROP_PROB,
-    device=DEVICE,
-)
-# dynamics_model = LaplaceBNN(
+# dynamics_model = MCDropoutBNN(
 #     state_dim=state_dim,
 #     action_dim=action_dim,
 #     input_expansion=true_env.input_expansion,
 #     state_bounds=state_bounds,
 #     action_bounds=actions_bounds,
 #     hidden_size=HIDDEN_SIZE,
+#     drop_prob=DROP_PROB,
 #     device=DEVICE,
 # )
+dynamics_model = LaplaceBNN(
+    state_dim=state_dim,
+    action_dim=action_dim,
+    input_expansion=true_env.input_expansion,
+    state_bounds=state_bounds,
+    action_bounds=actions_bounds,
+    hidden_size=HIDDEN_SIZE,
+    device=DEVICE,
+)
 # learned_env = LearnedMassSpringDamperEnv(model=dynamics_model)
 learned_env = LearnedReacherEnv(model=dynamics_model)
 

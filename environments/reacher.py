@@ -294,8 +294,8 @@ class TrueReacherEnv(ReacherEnv):
         # Sample dtheta1, dtheta2 from the sampling bounds
         dtheta1_low, dtheta1_high = sampling_bounds[4]
         dtheta2_low, dtheta2_high = sampling_bounds[5]
-        dtheta1 = np.random.uniform(-0.2, 0.2, size=num_samples)
-        dtheta2 = np.random.uniform(-0.2, 0.2, size=num_samples)
+        dtheta1 = np.random.uniform(-0.15, 0.15, size=num_samples)
+        dtheta2 = np.random.uniform(-0.15, 0.15, size=num_samples)
 
         # Fill in
         sampled_states[:, 0] = cos_t1
