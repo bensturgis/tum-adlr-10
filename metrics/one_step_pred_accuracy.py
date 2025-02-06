@@ -28,7 +28,7 @@ class OneStepPredictiveAccuracyEvaluator(EvaluationMetric):
         self.learned_env = learned_env
         self.num_samples = num_samples
         self.sampling_bounds = sampling_bounds
-        self.name = "One Step Predictive Accuracy"
+        self.name = "One Step Prediction Error"
         self.dataset = create_test_dataset(
             true_env=true_env,
             num_samples=num_samples,

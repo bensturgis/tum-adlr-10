@@ -35,7 +35,7 @@ class MultiStepPredictiveAccuracyEvaluator(EvaluationMetric):
         self.num_prediction_steps = num_prediction_steps
         self.trajectory_horizon = trajectory_horizon
         self.num_initial_states = num_initial_states
-        self.name = "Multi Step Predictive Accuracy"
+        self.name = "Multi Step Prediction Error"
 
         # A list to store data for each trajectory, including states, actions, and
         # the chosen initial indices from which we'll start multi-step rollouts
