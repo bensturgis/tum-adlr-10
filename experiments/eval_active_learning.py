@@ -46,7 +46,7 @@ NUM_INITIAL_STATES = 10   # Number of initial states sampled from each trajector
 NUM_PREDICTION_STEPS = 20 # Number of steps for multi-step prediction evaluation (M = 20 in paper)
 
 # Hyperparameters for the active learning evaluation
-NUM_AL_ITERATIONS = 5    # Number of active learning iterations (20 in paper)
+NUM_AL_ITERATIONS = 20    # Number of active learning iterations (20 in paper)
 NUM_EVAL_REPETITIONS = 1  # Number of evaluation runs for mean and variance (20 in paper)
 
 # Initialize the true environment
@@ -109,8 +109,9 @@ sampling_methods = [random_exploration]
 
 # Extract the minimum and maximum state bounds for sampling data to evaluate the
 # performance of the learned model with the one-step and multi-step predictive accuracy
-one_step_sampling_bounds = true_env.get_state_bounds(horizon=HORIZON, bound_shrink_factor=0.1)
-multi_step_sampling_bounds = true_env.get_state_bounds(horizon=HORIZON, bound_shrink_factor=0.1)
+# Choose bound_shrink_factor=0.06 for reacher and bound_shrink_factor=0.5 for mass-spring-damper system
+one_step_sampling_bounds = true_env.get_state_bounds(horizon=HORIZON, bound_shrink_factor=0.06)
+multi_step_sampling_bounds = true_env.get_state_bounds(horizon=HORIZON, bound_shrink_factor=0.06)
 
 # Initialize the evluation metrics 
 one_step_pred_acc_eval = OneStepPredictiveAccuracyEvaluator(
