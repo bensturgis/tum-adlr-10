@@ -51,7 +51,7 @@ dynamics_model = LaplaceBNN(
 env = TrueReacherEnv(noise_var=0.0)
 HORIZON = 50
 
-state_bounds = env.get_state_bounds(horizon=HORIZON, bound_shrink_factor=1.0)
+state_bounds = env.get_state_bounds(horizon=HORIZON, bound_shrink_factor=0.06)
 actions_bounds = env.get_action_bounds()
 # Hyperparameters for neural network
 STATE_DIM = 6
@@ -70,15 +70,16 @@ dynamics_model = LaplaceBNN(
     hidden_size=HIDDEN_SIZE,
     device=DEVICE,
 )
-exp_idx = 21
+exp_idx = 19
 num_iter = 2
-plot_reacher_uncertainty(
-    experiment=exp_idx,
-    sampling_method="Random Exploration",
-    num_al_iterations=num_iter,
-    true_env=env,
-    horizon=HORIZON,
-    repetition=0,
-    show_plot=True,
-    model=dynamics_model
-)
+for num_iter in range(1,26,1):
+    plot_reacher_uncertainty(
+        experiment=exp_idx,
+        sampling_method="Random Exploration", # "Random Exploration" "Random Sampling Shooting" "Soft Actor Critic"
+        num_al_iterations=num_iter,
+        true_env=env,
+        horizon=HORIZON,
+        repetition=0,
+        show_plot=False,
+        model=dynamics_model
+    )

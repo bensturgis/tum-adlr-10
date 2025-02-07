@@ -112,7 +112,7 @@ def plot_state_space_trajectory(
     if show_plot:
         plt.show()
     else:
-        plt.savefig(experiment_path / f'state_space_trajectory_rep{repetition}_iter{num_al_iterations}.png', dpi=300, bbox_inches='tight')
+        plt.savefig(experiment_path / f'{sampling_method}_traj_rep{repetition}_iter{num_al_iterations}.png', dpi=300, bbox_inches='tight')
 
 
 def plot_msd_uncertainty(
@@ -288,7 +288,7 @@ def plot_reacher_uncertainty(
         model.fit_posterior(dataloader)
 
     # generate grid
-    state_bounds = true_env.get_state_bounds(horizon=horizon, bound_shrink_factor=0.8)
+    state_bounds = true_env.get_state_bounds(horizon=horizon, bound_shrink_factor=0.06)
     action_bounds = true_env.get_action_bounds()
     pixels_per_axis = 100
     pixels_per_other_axes = 5
@@ -299,8 +299,8 @@ def plot_reacher_uncertainty(
     T2_flat = T2.ravel()
 
     # calculate predictive variance for each point
-    velocity_x = np.linspace(-0.15, 0.15, pixels_per_other_axes)
-    velocity_y = np.linspace(-0.15, 0.15, pixels_per_other_axes)
+    velocity_x = np.linspace(state_bounds[4][0], state_bounds[4][1], pixels_per_other_axes)
+    velocity_y = np.linspace(state_bounds[5][0], state_bounds[5][1], pixels_per_other_axes)
     action_1 = np.linspace(action_bounds[0][0], action_bounds[0][1], pixels_per_other_axes)
     action_2 = np.linspace(action_bounds[1][0], action_bounds[0][1], pixels_per_other_axes)
     redundant_axes = [velocity_x, velocity_y, action_1, action_2] # list for recusion
@@ -333,7 +333,7 @@ def plot_reacher_uncertainty(
 
     # plot 2D heatmap
     plt.figure(figsize=(12, 10))
-    plt.pcolormesh(T1, T2, Z, shading='auto', cmap='viridis')
+    plt.pcolormesh(T1, T2, Z, shading='auto', cmap='viridis', vmax=1.2, vmin=0.2)
     plt.colorbar(label='uncertainty prediction')
 
     ## 2. plot explored trajectories till current iteration
@@ -390,7 +390,7 @@ def plot_reacher_uncertainty(
     if show_plot:
         plt.show()
     else:
-        plt.savefig(experiment_path / f'state_space_pred_var_rep{repetition}_iter{num_al_iterations}.png', dpi=300, bbox_inches='tight')
+        plt.savefig(experiment_path / f'{sampling_method}_var_rep{repetition}_iter{num_al_iterations}.png', dpi=300, bbox_inches='tight')
 
 def plot_state_distribution(
     dataset: TensorDataset, 

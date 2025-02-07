@@ -36,7 +36,7 @@ class SoftActorCritic(SamplingMethod):
                            (state, action, next_state) transitions.
         """
         # Enforce a maximum episode to solve finite-horizon optimization problem
-        max_episode_steps = 1.5 * self.horizon
+        max_episode_steps = int(1.5 * self.horizon)
         learned_env = gym.wrappers.TimeLimit(learned_env, max_episode_steps=max_episode_steps)
         
         # Initialize a Soft Actor-Critic model for the learned environment
