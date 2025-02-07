@@ -318,6 +318,9 @@ class LearnedMassSpringDamperEnv(MassSpringDamperEnv, LearnedEnv):
         LearnedEnv.__init__(self, model=model)
         MassSpringDamperEnv.__init__(self)
         
+    def set_state(self, state: np.ndarray) -> None:
+        # Defer to LearnedEnv.set_state()
+        return LearnedEnv.set_state(self, state)
 
     def step(
         self, action: np.ndarray
