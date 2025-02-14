@@ -48,7 +48,7 @@ class MassSpringDamperEnv(gym.Env, ABC):
 
         # Factor by which to shrink maximum/minimum state bounds to find sampling bounds for creating
         # a test set
-        self.bound_shrink_factor = 0.5
+        self.bound_shrink_factor = 0.8
 
         # Ensures the input magnitude to the Bayesian neural network remains constant
         self.input_expansion = True
