@@ -133,7 +133,7 @@ def plot_msd_uncertainty(
         repetition (int): The repetition number. Defaults to 0.
     """
     ## 1. plot uncertainty prediction
-    state_bounds = true_env.get_state_bounds(horizon=horizon, bound_shrink_factor=0.8)
+    state_bounds = true_env.get_state_bounds(horizon=horizon, bound_shrink_factor=1.2)
     action_bounds = true_env.get_action_bounds()
     # generate grid
     pixels_per_axis = 100
@@ -197,7 +197,7 @@ def plot_msd_uncertainty(
     plt.figure(figsize=(12, 10))
     X, V = np.meshgrid(x, v) # 2D meshgrid for plot
     Z = mean_var_flat.reshape([pixels_per_axis, pixels_per_axis]) # map of uncertainty
-    plt.pcolormesh(X, V, Z, shading='auto', cmap='viridis')
+    plt.pcolormesh(X, V, Z, shading='auto', cmap='viridis', vmax=0.2, vmin=0.02)
     plt.colorbar(label='uncertainty prediction')
 
     ## 2. plot explored trajectories till current iteration
@@ -226,13 +226,14 @@ def plot_msd_uncertainty(
     plt.xlim(state_bounds[0][0], state_bounds[0][1])
     plt.ylim(state_bounds[1][0], state_bounds[1][1])
     
-    plt.title(f'State Space Uncertainty and explored Trajectories of Iteration {num_al_iterations}')
-    plt.legend()
+    plt.title(f'{sampling_method} at Iteration {num_al_iterations}')
+    # plt.title(f'State Space Uncertainty and explored Trajectories of Iteration {num_al_iterations}')
+    # plt.legend()
     
     if show_plot:
         plt.show()
     else:
-        plt.savefig(experiment_path / f'state_space_pred_var_rep{repetition}_iter{num_al_iterations}.png', dpi=300, bbox_inches='tight')
+        plt.savefig(experiment_path / f'{sampling_method}_var_rep{repetition}_iter{num_al_iterations}.png', dpi=300, bbox_inches='tight')
 
 
 def plot_reacher_uncertainty(
@@ -384,8 +385,8 @@ def plot_reacher_uncertainty(
     #         plt.plot(x, y, label=f"Iteration {iteration}")
 
     
-    plt.title(f'State Space Uncertainty and explored Trajectories of Iteration {num_al_iterations}')
-    plt.legend()
+    plt.title(f'{sampling_method} at Iteration {num_al_iterations}')
+    # plt.legend()
     
     if show_plot:
         plt.show()
@@ -426,3 +427,27 @@ def plot_state_distribution(
     plt.grid(True, linestyle='--', alpha=0.5)
     plt.tight_layout()
     plt.show()
+
+from PIL import Image
+import re
+import imageio.v2 as imageio
+def generate_GIF(experiment: int, sampling_method: str, repetition: int = 0):
+    base_path = Path(__file__).parent.parent / "experiments" / "active_learning_evaluations"
+    image_path = base_path / f"experiment_{experiment}"
+
+    # read imgs
+    image_files = list(image_path.glob(f"{sampling_method}_var_rep{repetition}_iter*.png"))
+    def extract_iteration(filepath):
+        filename = str(filepath)
+        match = re.search(r"iter(\d+)", filename)
+        return int(match.group(1)) if match else float('inf')
+    image_files = sorted(image_files, key=extract_iteration) # sort in iterations
+    images = [Image.open(img) for img in image_files] # open images
+    for i in range(5):
+        images.append(images[-1])
+
+    # save gif
+    output_path = image_path / f"{sampling_method}_var_rep{repetition}.gif"
+    imageio.mimsave(output_path, [img.convert('RGB') for img in images], duration=300, format='GIF', loop=0)
+
+    print(f"GIF Saved: {output_path}")
