@@ -25,15 +25,15 @@ DROP_PROB = 0.1           # Dropout probability for the bayesian neural network
 
 # General hyperparameters for sampling method
 # Set HORIZON = 100 for reacher environment to ensure exploration of theta angles in range [-π, π]
-HORIZON = 150              # Trajectory time horizon
+HORIZON = 50              # Trajectory time horizon
 
 # Hyperparameters for random sampling shooting
-MPC_HORIZON = 50 # Number of steps (H) in each sampled action sequence (H = 10 in paper) / Set H = 0 to discard MPC
+MPC_HORIZON = 30 # Number of steps (H) in each sampled action sequence (H = 10 in paper) / Set H = 0 to discard MPC
 NUM_ACTION_SEQ = 2000 # Number of action sequences (K) sampled at each time step (K = 20000 in paper)
 NUM_PARTICLES = 100 # The number of particles for Monte Carlo sampling during performance evaluation
 
 # Hyperparamters for the Soft Actor-Critic (SAC)
-TOTAL_TIMESTEPS = 40000 # The total number of timesteps to train the SAC in each active learning iteration
+TOTAL_TIMESTEPS = 30000 # The total number of timesteps to train the SAC in each active learning iteration
 
 # Hyperparameters for one-step predictive accuracy
 NUM_SAMPLES = 1250        # Number of (state, action, next_state) samples (N_1 = 1250 in paper)
@@ -46,12 +46,12 @@ NUM_INITIAL_STATES = 10   # Number of initial states sampled from each trajector
 NUM_PREDICTION_STEPS = 20 # Number of steps for multi-step prediction evaluation (M = 20 in paper)
 
 # Hyperparameters for the active learning evaluation
-NUM_AL_ITERATIONS = 20    # Number of active learning iterations (20 in paper)
-NUM_EVAL_REPETITIONS = 5  # Number of evaluation runs for mean and variance (20 in paper)
+NUM_AL_ITERATIONS = 25    # Number of active learning iterations (20 in paper)
+NUM_EVAL_REPETITIONS = 3  # Number of evaluation runs for mean and variance (20 in paper)
 
 # Initialize the true environment
-true_env = TrueMassSpringDamperEnv()
-# true_env = TrueReacherEnv(link_length=1.0)
+# true_env = TrueMassSpringDamperEnv()
+true_env = TrueReacherEnv(link_length=1.0)
 
 # Get state and action bounds for the dynamical system over the specified horizon
 # to perform input expansion if necessary and keep magnitude of the input constant
@@ -90,8 +90,8 @@ dynamics_model = LaplaceBNN(
     hidden_size=HIDDEN_SIZE,
     device=DEVICE,
 )
-learned_env = LearnedMassSpringDamperEnv(model=dynamics_model)
-# learned_env = LearnedReacherEnv(model=dynamics_model)
+# learned_env = LearnedMassSpringDamperEnv(model=dynamics_model)
+learned_env = LearnedReacherEnv(model=dynamics_model)
 
 # Initialize the sampling methods
 random_exploration = RandomExploration(horizon=HORIZON)
