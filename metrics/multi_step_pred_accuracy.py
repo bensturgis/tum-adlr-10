@@ -4,7 +4,7 @@ from typing import Dict
 
 from metrics.evaluation_metric import EvaluationMetric
 
-class MultiStepPredictiveAccuracyEvaluator(EvaluationMetric):
+class MultiStepPredictionErrorEvaluator(EvaluationMetric):
     """
     Evaluates the multi-step predictive accuracy of a learned environment against a true environment.
     """
@@ -59,7 +59,7 @@ class MultiStepPredictiveAccuracyEvaluator(EvaluationMetric):
                 sampled_action = true_env.action_space.sample()
 
                 # Step in the true environment
-                next_state, _, terminated, truncated, _ = true_env.step(sampled_action)
+                next_state, terminated, truncated = true_env.step_no_reward(sampled_action)
 
                 # If the episode ends, stop collecting
                 if terminated or truncated:
@@ -121,7 +121,7 @@ class MultiStepPredictiveAccuracyEvaluator(EvaluationMetric):
                 # Step forward num_prediction_steps in the learned environment
                 for step_ahead in range(self.num_prediction_steps):
                     action = actions[idx + step_ahead]
-                    _, _, terminated, truncated, _ = self.learned_env.step(action)
+                    _, terminated, truncated = self.learned_env.step_no_reward(action)
 
                     if terminated or truncated:
                         early_termination = True

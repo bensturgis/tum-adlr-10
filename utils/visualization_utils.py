@@ -1,12 +1,22 @@
 import gymnasium as gym
-import numpy as np
+import imageio.v2 as imageio
+import json
 import matplotlib.pyplot as plt
-from pathlib import Path
 from models.laplace_bnn import LaplaceBNN
-from models.mc_dropout_bnn import MCDropoutBNN
+import numpy as np
+from pathlib import Path
+from PIL import Image
+import re
 import torch
 from torch.utils.data import TensorDataset, DataLoader
-from typing import Dict, Tuple
+from typing import Dict, List, Tuple
+
+from environments.mass_spring_damper_system import LearnedMassSpringDamperEnv, TrueMassSpringDamperEnv
+from environments.reacher import LearnedReacherEnv, TrueReacherEnv
+from metrics.evaluation_metric import EvaluationMetric
+from models.laplace_bnn import LaplaceBNN
+from models.mc_dropout_bnn import MCDropoutBNN
+from models.feedforward_nn import FeedforwardNN
 
 BOUND_SHRINK_FACTOR = 0.8
 
@@ -428,9 +438,6 @@ def plot_state_distribution(
     plt.tight_layout()
     plt.show()
 
-from PIL import Image
-import re
-import imageio.v2 as imageio
 def generate_GIF(experiment: int, sampling_method: str, repetition: int = 0):
     base_path = Path(__file__).parent.parent / "experiments" / "active_learning_evaluations"
     image_path = base_path / f"experiment_{experiment}"
@@ -451,3 +458,266 @@ def generate_GIF(experiment: int, sampling_method: str, repetition: int = 0):
     imageio.mimsave(output_path, [img.convert('RGB') for img in images], duration=300, format='GIF', loop=0)
 
     print(f"GIF Saved: {output_path}")
+
+def get_horizon(experiment: int) -> int:
+    # Construct the path to the state experiment folder
+    base_path = Path(__file__).parent.parent / "experiments" / "active_learning_evaluations"
+    experiment_path = base_path / f"experiment_{experiment}"
+    
+    # Extract hyperparameters
+    hyperparams_file = experiment_path / "hyperparameters.json"
+    with open(hyperparams_file, 'r') as file:
+        hyperparams = json.load(file)
+
+        # TODO: assert that horizons of all sampling methods match
+        horizon = hyperparams["sampling_methods"][0]["horizon"]
+
+    return horizon
+
+def reconstruct_envs(
+    experiment: int, device: torch.device = torch.device('cpu')
+) -> Tuple[gym.Env, gym.Env]:
+    # Construct the path to the state experiment folder
+    base_path = Path(__file__).parent.parent / "experiments" / "active_learning_evaluations"
+    experiment_path = base_path / f"experiment_{experiment}"
+    
+    # Extract hyperparameters
+    hyperparams_file = experiment_path / "hyperparameters.json"
+    with open(hyperparams_file, 'r') as file:
+        hyperparams = json.load(file)
+
+        # Extract hyperparameters of true environment
+        if hyperparams["true_env"]["name"] == "Mass-Spring-Damper System":
+            mass = hyperparams["true_env"]["mass"]
+            stiffness = hyperparams["true_env"]["stiffness"]
+            damping = hyperparams["true_env"]["damping"]
+            time_step = hyperparams["true_env"]["time_step"]
+            non_linear = hyperparams["true_env"]["nonlinear"]
+            noise_var = hyperparams["true_env"]["noise_var"]
+            true_env = TrueMassSpringDamperEnv(
+                mass=mass,
+                stiffness=stiffness,
+                damping=damping,
+                time_step=time_step,
+                nonlinear=non_linear,
+                noise_var=noise_var
+            )
+        elif hyperparams["true_env"]["name"] == "Reacher":
+            link_length = hyperparams["true_env"]["link_length"]
+            time_step = hyperparams["true_env"]["time_step"]
+            noise_var = hyperparams["true_env"].get("noise_var", 0.0)
+            true_env = TrueReacherEnv(
+                link_length=link_length,
+                time_step=time_step,
+                noise_var=noise_var
+            )
+        else:
+            raise ValueError(f"Unknown environment: {hyperparams['true_env']['name']}. "
+                             "Supported environments are 'Mass-Spring-Damper System' and 'Reacher'.")
+        print(f"True Environment: {true_env.params_to_dict()}")
+
+        # Extract hyperparameters of learned environment
+        if hyperparams["learned_env"]["model"]["name"] == "Monte Carlo Dropout Bayesian Neural Network":
+            state_bounds = hyperparams["learned_env"]["model"]["state_bounds"]
+            state_dim = hyperparams["learned_env"]["model"].get("state_dim", len(state_bounds))
+            action_bounds = hyperparams["learned_env"]["model"]["action_bounds"]
+            action_dim = hyperparams["learned_env"]["model"].get("action_dim", len(action_bounds))
+            input_expansion = hyperparams["learned_env"]["model"]["input_expansion"]
+            hidden_size = hyperparams["learned_env"]["model"].get("hidden_size", 72)
+            drop_prob = hyperparams["learned_env"]["model"].get("drop_prob", 0.1)
+
+            dynamics_model = MCDropoutBNN(
+                state_dim=state_dim,
+                action_dim=action_dim,
+                input_expansion=input_expansion,
+                state_bounds=state_bounds,
+                action_bounds=action_bounds,
+                hidden_size=hidden_size,
+                drop_prob=drop_prob,
+                device=device,
+            )
+        elif hyperparams["learned_env"]["model"]["name"] == "Laplace Approximation Bayesian Neural Network":
+            state_bounds = hyperparams["learned_env"]["model"]["state_bounds"]
+            state_dim = hyperparams["learned_env"]["model"].get("state_dim", len(state_bounds))
+            action_bounds = hyperparams["learned_env"]["model"]["action_bounds"]
+            action_dim = hyperparams["learned_env"]["model"].get("action_dim", len(action_bounds))
+            input_expansion = hyperparams["learned_env"]["model"]["input_expansion"]
+            hidden_size = hyperparams["learned_env"]["model"].get("hidden_size", 72)
+
+            dynamics_model = LaplaceBNN(
+                state_dim=state_dim,
+                action_dim=action_dim,
+                input_expansion=true_env.input_expansion,
+                state_bounds=state_bounds,
+                action_bounds=action_bounds,
+                hidden_size=hidden_size,
+                device=device,
+            )
+        elif hyperparams["learned_env"]["model"]["name"] == "Standard Feedforward Neural Network":
+            state_dim = hyperparams["learned_env"]["model"]["state_dim"]
+            action_dim = hyperparams["learned_env"]["model"]["action_dim"]
+            hidden_size = hyperparams["learned_env"]["model"]["hidden_size"]
+
+            dynamics_model = FeedforwardNN(
+                state_dim=state_dim,
+                action_dim=action_dim,
+                hidden_size=hidden_size
+            )
+        else:
+            raise ValueError(f"Unknown model: {hyperparams['learned_env']['model']['name']}. "
+                             "Supported models are 'Monte Carlo Dropout Bayesian Neural Network', "
+                             "'Laplace Approximation Bayesian Neural Network' and 'Standard "
+                             "Feedforward Neural Network'.")
+
+        if hyperparams["learned_env"]["name"] == "Mass-Spring-Damper System":
+            learned_env = LearnedMassSpringDamperEnv(
+                model=dynamics_model
+            )
+        elif hyperparams["learned_env"]["name"] == "Reacher":
+            learned_env = LearnedReacherEnv(
+                model=dynamics_model
+            )
+        else:
+            raise ValueError(f"Unknown environment: {hyperparams['learned_env']['name']}. "
+                             "Supported environments are 'Mass-Spring-Damper System' and 'Reacher'.")
+        print(f"Learned Environment: {learned_env.params_to_dict()}")
+
+        return true_env, learned_env
+
+def plot_prediction_error(
+        experiment: int, learned_env: gym.Env, metrics: List[EvaluationMetric], num_al_iterations: int = None,
+        eval_repetitions: List[int] = None, show: bool = True, save: bool = True,
+        device: torch.device = torch.device('cpu')
+    ):
+    # Construct the path to the state experiment folder
+    base_path = Path(__file__).parent.parent / "experiments" / "active_learning_evaluations"
+    experiment_path = base_path / f"experiment_{experiment}"
+    
+    # Extract hyperparameters
+    hyperparams_file = experiment_path / "hyperparameters.json"
+    with open(hyperparams_file, 'r') as file:
+        hyperparams = json.load(file)
+
+        # Extract used sampling methods
+        sampling_methods = [method["name"] for method in hyperparams["sampling_methods"]]
+        if num_al_iterations is None:
+            num_al_iterations = hyperparams["num_al_iterations"]
+        if eval_repetitions is None:
+            num_eval_repetitions = hyperparams["num_eval_repetitions"]
+            eval_repetitions = range(num_eval_repetitions)
+        else:
+            num_eval_repetitions = len(eval_repetitions)
+
+    mean_errors = {}
+    std_errors = {}
+    for sampling_method in sampling_methods:
+        mean_errors[sampling_method] = {}
+        std_errors[sampling_method] = {}
+        for metric in metrics:
+            errors = np.zeros((num_eval_repetitions, num_al_iterations))
+            for rep_idx, rep in enumerate(eval_repetitions):
+                for iter in range(num_al_iterations):
+                    training_path = (
+                        experiment_path / "training_results" / sampling_method 
+                        / f"repetition_{rep}" / f"iteration_{iter+1}"
+                    )
+
+                    model_weights_path = training_path / "model_weights.pt"
+                    
+                    learned_env.model.load_state_dict(torch.load(
+                        model_weights_path, map_location=device
+                    ))
+                    learned_env.model.eval()
+
+                    errors[rep_idx][iter] = metric.evaluate()
+
+            mean_errors[sampling_method][metric.name] = list(np.mean(errors, axis=0))
+            std_errors[sampling_method][metric.name] = list(np.std(errors, axis=0))
+
+    figures = create_prediction_error_plot(
+        mean_errors=mean_errors,
+        std_errors=std_errors,
+        num_al_iterations=num_al_iterations
+    )
+
+    # Save the error plots
+    if save:
+        for metric in metrics:
+            plot_path = experiment_path / f"{metric.name.lower().replace(' ', '_')}_plot.png"
+            counter = 2
+
+            # Check if the file exists and append _01, _02, etc.
+            while plot_path.exists():
+                plot_path = experiment_path / f"{metric.name.lower().replace(' ', '_')}_plot_{counter:02d}.png"
+                counter += 1
+
+            figures[metric.name].savefig(plot_path, bbox_inches="tight", dpi=300)
+            print(f"{metric} plot saved to {plot_path}.")
+
+    if show:
+        plt.show()
+
+def create_prediction_error_plot(
+    mean_errors: Dict[str, Dict[str, List[float]]],
+    std_errors: Dict[str, Dict[str, List[float]]],
+    num_al_iterations: int
+) -> Dict[str, plt.Figure]:
+    """
+    Plots the mean and standard deviation of prediction errors for different sampling
+    methods over active learning iterations.
+
+    Args:
+        mean_errors (Dict[str, Dict[str, List]]): A nested dictionary where
+            mean_errors[sampling_method][metric] is a list of length
+            `num_al_iterations` with mean errors per iteration across repetitions.
+        std_errors (Dict[str, Dict[str, List]]): A nested dictionary where
+            std_errors[sampling_method][metric] is a list of length 
+            `num_al_iterations` with standard deviations per iteration across repetitions.
+    """
+    # Define map of colors to distinguish the sampling methods
+    color_map = {
+        "Random Exploration": "blue",
+        "Random Sampling Shooting": "green",
+        "Soft Actor Critic": "orange"
+    }
+    
+    iterations = range(1, num_al_iterations + 1)
+    sampling_methods = list(mean_errors.keys())
+    evaluation_metrics = list(next(iter(mean_errors.values())).keys())
+
+    # Create a plot for each evaluation metric
+    figures = {}
+    for metric in evaluation_metrics:
+        fig, ax = plt.subplots(
+            num=f"{metric} over Active Learning Iterations", figsize=(8, 5)
+        )
+        
+        # Plot mean and std for each sampling method using the specified color
+        for sampling_method in sampling_methods:
+            # Extract arrays without overwriting the original dictionary variables
+            mean_arr = mean_errors[sampling_method][metric]
+            std_arr = std_errors[sampling_method][metric]
+
+            # Lookup the color for this method from the map
+            color = color_map.get(sampling_method, "black")  # default to black if not found
+
+            # Plot the mean curve
+            ax.plot(iterations, mean_arr, label=sampling_method, color=color)
+            # Plot error bars (±1 std)
+            ax.errorbar(
+                iterations, mean_arr,
+                yerr=std_arr, fmt='o',
+                color=color, ecolor=color,
+                capsize=3, elinewidth=1
+            )
+
+        # Customize axes and title
+        ax.set_xlabel("Active Learning Iteration")
+        ax.set_ylabel(metric)
+        ax.set_title(f"{metric} over Active Learning Iterations")
+        ax.legend()
+        ax.grid(True)
+
+        figures[metric] = fig
+
+    return figures

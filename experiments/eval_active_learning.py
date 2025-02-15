@@ -6,8 +6,8 @@ sys.path.append(os.path.abspath("."))
 from active_learning import ActiveLearningEvaluator
 from environments.mass_spring_damper_system import TrueMassSpringDamperEnv, LearnedMassSpringDamperEnv
 from environments.reacher import TrueReacherEnv, LearnedReacherEnv
-from metrics.one_step_pred_accuracy import OneStepPredictiveAccuracyEvaluator
-from metrics.multi_step_pred_accuracy import MultiStepPredictiveAccuracyEvaluator
+from metrics.one_step_pred_accuracy import OneStepPredictionErrorEvaluator
+from metrics.multi_step_pred_accuracy import MultiStepPredictionErrorEvaluator
 from models.feedforward_nn import FeedforwardNN
 from models.mc_dropout_bnn import MCDropoutBNN
 from models.laplace_bnn import LaplaceBNN
@@ -20,7 +20,7 @@ HIDDEN_SIZE = 72          # Hidden units in the neural network
 NUM_EPOCHS = 25           # Training epochs per iteration
 BATCH_SIZE = 50           # Batch size for training
 LEARNING_RATE = 1e-3      # Learning rate for the optimizer
-DEVICE = "cuda"           # PyTorch device for training
+DEVICE = "cpu"            # PyTorch device for training
 DROP_PROB = 0.1           # Dropout probability for the bayesian neural network
 
 # General hyperparameters for sampling method
@@ -46,7 +46,7 @@ NUM_INITIAL_STATES = 10   # Number of initial states sampled from each trajector
 NUM_PREDICTION_STEPS = 20 # Number of steps for multi-step prediction evaluation (M = 20 in paper)
 
 # Hyperparameters for the active learning evaluation
-NUM_AL_ITERATIONS = 25    # Number of active learning iterations (20 in paper)
+NUM_AL_ITERATIONS = 20    # Number of active learning iterations (20 in paper)
 NUM_EVAL_REPETITIONS = 3  # Number of evaluation runs for mean and variance (20 in paper)
 
 # Initialize the true environment
@@ -105,16 +105,16 @@ soft_actor_critic = SoftActorCritic(
     horizon=HORIZON, 
     total_timesteps=TOTAL_TIMESTEPS
 )
-sampling_methods = [random_exploration, random_sampling_shooting, soft_actor_critic]
+sampling_methods = [random_exploration]
 
 # Initialize the evluation metrics 
-one_step_pred_acc_eval = OneStepPredictiveAccuracyEvaluator(
+one_step_pred_acc_eval = OneStepPredictionErrorEvaluator(
     true_env=true_env,
     learned_env=learned_env,
     num_samples=NUM_SAMPLES,
     horizon=HORIZON
 ) 
-multi_step_pred_acc_eval = MultiStepPredictiveAccuracyEvaluator(
+multi_step_pred_acc_eval = MultiStepPredictionErrorEvaluator(
     true_env=true_env,
     learned_env=learned_env,
     horizon=HORIZON,

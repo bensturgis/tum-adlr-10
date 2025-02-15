@@ -30,6 +30,10 @@ class MCDropoutBNN(BNN):
             input_expansion=input_expansion, state_bounds=state_bounds,
             action_bounds=action_bounds
         )
+        self.hidden_size = hidden_size
+        self.drop_prob = drop_prob
+        self.device = device
+        
         input_dim = self.state_dim + self.action_dim
         # Augment input dimension for feature expansion
         if self.input_expansion:
@@ -106,3 +110,26 @@ class MCDropoutBNN(BNN):
         var_pred = preds.var(dim=1).detach().cpu().numpy()
 
         return mean_pred, var_pred
+    
+    def params_to_dict(self) -> Dict[str, str]:
+        """
+        Converts hyperparameters into a dictionary.
+
+        Returns:
+            Dict[str, str]: Hyperparameter dictionary.
+        """
+        parameter_dict = {
+            "name": self.name,
+            "input_expansion": self.input_expansion,
+            "state_dim": self.state_dim,
+            "state_bounds": {k: str(v) for k, v in self.state_bounds.items()},
+            "action_dim": self.action_dim,
+            "action_bounds": {k: str(v) for k, v in self.action_bounds.items()},
+            "hidden_size": self.hidden_size,
+            "drop_prob": self.drop_prob,
+            "device": self.device,
+            "architecture": [
+                str(layer) for layer in self.model
+            ]
+        }
+        return parameter_dict

@@ -5,7 +5,6 @@ from torch.utils.data import TensorDataset, DataLoader
 from typing import Dict, Tuple
 
 from sampling_methods.random_exploration import RandomExploration
-from utils.visualization_utils import plot_state_distribution
 
 def create_dataloader(dataset: TensorDataset, batch_size: int) -> DataLoader:
     """

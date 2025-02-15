@@ -2,8 +2,10 @@ import numpy as np
 import torch
 from typing import Dict, Tuple, Any, Union
 
-from models.feedforward_nn import FeedforwardNN
 from models.bnn import BNN
+from models.feedforward_nn import FeedforwardNN
+from models.laplace_bnn import LaplaceBNN
+from models.mc_dropout_bnn import MCDropoutBNN
 
 class LearnedEnv():
     """
@@ -66,6 +68,42 @@ class LearnedEnv():
 
         return self.state, reward, terminated, truncated, info
     
+    def step_no_reward(
+        self, action: np.ndarray
+    ) -> Tuple[np.ndarray, bool, bool, Dict[str, Any]]:
+        """
+        Perform a single step in the environment by applying the given action
+        according to the learned dynamics, without calculating or returning the reward.
+
+        Args:
+            action (np.ndarray): Action applied to the system.
+
+        Returns:
+            Tuple[np.ndarray, bool, bool, dict]: Next state, termination flag,
+                truncation flag, and additional info.
+        """
+        state_tensor = torch.tensor(self.state, dtype=torch.float32).unsqueeze(0)
+        action_tensor = torch.tensor(action, dtype=torch.float32).unsqueeze(0)
+
+        # Model-specific prediction logic
+        if isinstance(self.model, MCDropoutBNN):
+            # Bayesian model prediction: returns next state
+            next_state, _ = self.model.bayesian_pred(state_tensor, action_tensor)
+            self.state = next_state.squeeze()  # Update state
+        elif isinstance(self.model, FeedforwardNN) or isinstance(self.model, LaplaceBNN):
+            # Deterministic model prediction: only returns next state
+            next_state = self.model(state_tensor, action_tensor).squeeze(0).detach().numpy()
+            self.state = next_state  # Update state
+        else:
+            raise ValueError(f"Unsupported model type: {type(self.model)}. "
+                            f"Expected BNN or FeedforwardNN.")
+
+        # No termination and truncation conditions defined
+        terminated = False
+        truncated = False
+
+        return self.state, terminated, truncated
+
     def differential_entropy(self, pred_vars: np.ndarray) -> float:
         """
         Compute the differential entropy of a multivariate Gaussian based on variances from

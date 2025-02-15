@@ -335,6 +335,7 @@ class TrueReacherEnv(ReacherEnv):
             "name": self.name,
             "link_length": self.link_length,
             "time_step": self.time_step,
+            "noise_var": self.noise_var,
             "bound_shrink_factor": self.bound_shrink_factor
         }
         return parameter_dict

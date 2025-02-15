@@ -27,6 +27,8 @@ class LaplaceBNN(BNN):
             input_expansion=input_expansion, state_bounds=state_bounds,
             action_bounds=action_bounds
         )
+        self.hidden_size = hidden_size
+
         input_dim = self.state_dim + self.action_dim
         # Augment input dimension for feature expansion
         if self.input_expansion:
@@ -37,7 +39,6 @@ class LaplaceBNN(BNN):
             nn.Linear(hidden_size, state_dim),
         )
         self.to(self.device)
-        self.laplace_approximation = None
         self.name = "Laplace Approximation Bayesian Neural Network"
 
     def fit_posterior(self, train_loader):
@@ -106,3 +107,40 @@ class LaplaceBNN(BNN):
         var_pred = torch.cat(var_preds, dim=0).detach().cpu().numpy()
 
         return mean_pred, var_pred
+    
+    def forward(self, state: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass through the model with given state and action.
+
+        Args:
+            state (torch.Tensor): The state tensor of shape (batch_size, state_dim).
+            action (torch.Tensor): The action tensor of shape (batch_size, action_dim).
+        
+        Returns:
+            torch.Tensor: The output prediction of shape (batch_size, output_dim).
+        """
+        x = torch.cat([state, action], dim=1)
+        return self.model(x)
+
+    
+    def params_to_dict(self) -> Dict[str, str]:
+        """
+        Converts hyperparameters into a dictionary.
+
+        Returns:
+            Dict[str, str]: Hyperparameter dictionary.
+        """
+        parameter_dict = {
+            "name": self.name,
+            "input_expansion": self.input_expansion,
+            "state_dim": self.state_dim,
+            "state_bounds": {k: str(v) for k, v in self.state_bounds.items()},
+            "action_dim": self.action_dim,
+            "action_bounds": {k: str(v) for k, v in self.action_bounds.items()},
+            "hidden_size": self.hidden_size,
+            "device": self.device,
+            "architecture": [
+                str(layer) for layer in self.model
+            ]
+        }
+        return parameter_dict

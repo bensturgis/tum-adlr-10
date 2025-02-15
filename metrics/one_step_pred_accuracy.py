@@ -5,7 +5,7 @@ from typing import Dict
 from metrics.evaluation_metric import EvaluationMetric
 from utils.train_utils import create_test_dataset
 
-class OneStepPredictiveAccuracyEvaluator(EvaluationMetric):
+class OneStepPredictionErrorEvaluator(EvaluationMetric):
     """
     Evaluates the one-step predictive accuracy of a learned environment against a true environment.
     """
@@ -53,7 +53,7 @@ class OneStepPredictiveAccuracyEvaluator(EvaluationMetric):
 
             # Set the initial state in the learned environment
             self.learned_env.set_state(state)
-            pred_next_state, _, pred_terminated, pred_truncated, _ = self.learned_env.step(action)
+            pred_next_state, pred_terminated, pred_truncated = self.learned_env.step_no_reward(action)
 
             # Skip if termination or truncation occurs
             if pred_terminated or pred_truncated:

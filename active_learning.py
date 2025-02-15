@@ -7,7 +7,7 @@ from metrics.evaluation_metric import EvaluationMetric
 from sampling_methods.sampling_method import SamplingMethod
 from sampling_methods.random_exploration import RandomExploration
 from utils.train_utils import combine_datasets, create_dataloader, create_test_dataset
-from utils.visualization_utils import plot_state_distribution
+from utils.visualization_utils import plot_state_distribution, create_prediction_error_plot
 from typing import Dict, List
 from pathlib import Path
 import json
@@ -53,16 +53,16 @@ class ActiveLearningEvaluator():
         - Collects initial data.
         - Iteratively trains the dynamics model and evaluates its accuracy.
         - Updates the dataset with new trajectories after each iteration.
-        - Plots predictive accuracy over iterations.
+        - Plots prediction error over iterations.
         """
-        # Dictionary to store the accuracy results for each sampling method and metric across all repetitions.
-        # all_accuracies[sampling_method_name][metric_name] -> np.ndarray of shape:
+        # Dictionary to store the error results for each sampling method and metric across all repetitions.
+        # all_errors[sampling_method_name][metric_name] -> np.ndarray of shape:
         # (num_eval_repetitions, num_al_iterations)
-        all_accuracies = {}
+        all_errors = {}
         for sampling_method in self.sampling_methods:
-            all_accuracies[sampling_method.name] = {}
+            all_errors[sampling_method.name] = {}
             for metric in self.evaluation_metrics:
-                all_accuracies[sampling_method.name][metric.name] = np.zeros(
+                all_errors[sampling_method.name][metric.name] = np.zeros(
                     (self.num_eval_repetitions, self.num_al_iterations)
                 )
 
@@ -150,11 +150,11 @@ class ActiveLearningEvaluator():
                     
                     # Evaluate the learned model 
                     for metric in self.evaluation_metrics:
-                        accuracy = metric.evaluate()
-                        print(f"{metric.name}: {accuracy}")
+                        error = metric.evaluate()
+                        print(f"{metric.name}: {error}")
                     
-                        # Store the accuracy for this repetition and iteration
-                        all_accuracies[sampling_method.name][metric.name][repetition][iteration] = accuracy
+                        # Store the error for this repetition and iteration
+                        all_errors[sampling_method.name][metric.name][repetition][iteration] = error
                     
                     # Collect new data only if further training iterations remain
                     if iteration < self.num_al_iterations - 1:
@@ -175,30 +175,31 @@ class ActiveLearningEvaluator():
         #         state_dim_names=self.true_env.state_dim_names
         #     )
 
-        mean_accuracies = {}
-        std_accuracies = {}
+        mean_errors = {}
+        std_errors = {}
         for sampling_method in self.sampling_methods:
-            mean_accuracies[sampling_method.name] = {}
-            std_accuracies[sampling_method.name] = {}
+            mean_errors[sampling_method.name] = {}
+            std_errors[sampling_method.name] = {}
             for metric in self.evaluation_metrics:                
                 # Compute the mean (and std) across the repetition axis = 0
-                mean_accuracies[sampling_method.name][metric.name] = list(np.mean(
-                    all_accuracies[sampling_method.name][metric.name], axis=0
+                mean_errors[sampling_method.name][metric.name] = list(np.mean(
+                    all_errors[sampling_method.name][metric.name], axis=0
                 ))
 
-                std_accuracies[sampling_method.name][metric.name] = list(np.std(
-                    all_accuracies[sampling_method.name][metric.name], axis=0
+                std_errors[sampling_method.name][metric.name] = list(np.std(
+                    all_errors[sampling_method.name][metric.name], axis=0
                 ))
 
         # Plot and save the results
         if show or save:
-            figures = self.create_active_learning_plot(mean_accuracies=mean_accuracies,
-                                                       std_accuracies=std_accuracies)
+            figures = create_prediction_error_plot(mean_errors=mean_errors,
+                                                   std_errors=std_errors,
+                                                   num_al_iterations=self.num_al_iterations)
         
         if save:
             self.save_active_learning_results(figures=figures,
-                                              mean_accuracies=mean_accuracies,
-                                              std_accuracies=std_accuracies,
+                                              mean_errors=mean_errors,
+                                              std_errors=std_errors,
                                               state_trajectories=state_trajectories,
                                               training_results=training_results)
         
@@ -230,15 +231,15 @@ class ActiveLearningEvaluator():
 
     def save_active_learning_results(
             self, figures: Dict[str, Figure],
-            mean_accuracies: Dict[str, Dict[str, List[float]]],
-            std_accuracies: Dict[str, Dict[str, List[float]]],
+            mean_errors: Dict[str, Dict[str, List[float]]],
+            std_errors: Dict[str, Dict[str, List[float]]],
             state_trajectories: Dict[str, Dict[int, np.ndarray]],
             training_results: Dict[str, Dict[int, List[Dict]]]
     ) -> None:
         """
         Saves the results of the active learning experiment, including:
-        - A summary plot of predictive accuracies over iterations for each metric.
-        - Mean and standard deviation of predictive accuracies for each sampling method.
+        - A summary plot of prediction errors over iterations for each metric.
+        - Mean and standard deviation of prediction errors for each sampling method.
         - Hyperparameters of the experiment.
         - State trajectories collected during the experiment.
         - Iteration-level training results (train/test losses, model weights, and a loss plot).
@@ -246,11 +247,11 @@ class ActiveLearningEvaluator():
         Args:
             figures (Dict[str, Figure]): A dictionary where each key is a metric name and each
                 value is a Matplotlib figure object. These figures will be saved as PNG files.
-            mean_accuracies (Dict[str, Dict[str, List]]): A nested dictionary where
-                mean_accuracies[sampling_method][metric] is a list of length
-                `num_al_iterations` with mean accuracies per iteration across repetitions.
-            std_accuracies (Dict[str, Dict[str, List]]): A nested dictionary where
-                std_accuracies[sampling_method][metric] is a list of length 
+            mean_errors (Dict[str, Dict[str, List]]): A nested dictionary where
+                mean_errors[sampling_method][metric] is a list of length
+                `num_al_iterations` with mean errors per iteration across repetitions.
+            std_errors (Dict[str, Dict[str, List]]): A nested dictionary where
+                std_errors[sampling_method][metric] is a list of length 
                 `num_al_iterations` with standard deviations per iteration across repetitions.
             state_trajectories (Dict[str, Dict[int, Dict[int, np.ndarray]]]): A nested dictionary storing 
                 state trajectories, where the keys are sampling method names, repetitions, 
@@ -270,22 +271,22 @@ class ActiveLearningEvaluator():
 
         save_dir.mkdir(parents=True, exist_ok=True)
 
-        # Save the accuracy plots
+        # Save the error plots
         for metric in self.evaluation_metrics:
             plot_path = save_dir / f"{metric.name.lower().replace(' ', '_')}_plot.png"
             figures[metric.name].savefig(plot_path, bbox_inches="tight", dpi=300)
             print(f"{metric.name} plot saved to {plot_path}.")
 
-        # Save the mean and standard deviation of the predictive accuracies
-        mean_pred_accuracies_path = save_dir / "pred_accuracies_mean.json"
-        with open(mean_pred_accuracies_path, "w") as f:
-            json.dump(mean_accuracies, f, indent=3)
-        print(f"Mean accuracies saved to {mean_pred_accuracies_path}.")
+        # Save the mean and standard deviation of the prediction errors
+        mean_pred_errors_path = save_dir / "pred_errors_mean.json"
+        with open(mean_pred_errors_path, "w") as f:
+            json.dump(mean_errors, f, indent=3)
+        print(f"Mean errors saved to {mean_pred_errors_path}.")
         
-        std_pred_accuracies_path = save_dir / "pred_accuracies_std.json"
-        with open(std_pred_accuracies_path, "w") as f:
-            json.dump(std_accuracies, f, indent=3)        
-        print(f"Standard deviations saved to {std_pred_accuracies_path}.")
+        std_pred_errors_path = save_dir / "pred_errors_std.json"
+        with open(std_pred_errors_path, "w") as f:
+            json.dump(std_errors, f, indent=3)        
+        print(f"Standard deviations saved to {std_pred_errors_path}.")
 
         # Save hyperparameters
         hyperparams = self.params_to_dict()
@@ -345,65 +346,3 @@ class ActiveLearningEvaluator():
                     plt.grid(True)
                     plt.savefig(iteration_dir / "loss_plot.png", bbox_inches="tight", dpi=300)
                     plt.close()
-              
-
-    def create_active_learning_plot(
-        self, mean_accuracies: Dict[str, Dict[str, List[float]]],
-        std_accuracies: Dict[str, Dict[str, List[float]]]
-    ) -> None:
-        """
-        Plots the mean and standard deviation of predictive accuracies for different sampling
-        methods over active learning iterations.
-
-        Args:
-            mean_accuracies (Dict[str, Dict[str, List]]): A nested dictionary where
-                mean_accuracies[sampling_method][metric] is a list of length
-                `num_al_iterations` with mean accuracies per iteration across repetitions.
-            std_accuracies (Dict[str, Dict[str, List]]): A nested dictionary where
-                std_accuracies[sampling_method][metric] is a list of length 
-                `num_al_iterations` with standard deviations per iteration across repetitions.
-        """
-        # Define map of colors to distinguish the sampling methods
-        color_map = {
-            "Random Exploration": "blue",
-            "Random Sampling Shooting": "green",
-        }
-        
-        iterations = range(1, self.num_al_iterations + 1)
-
-        # Create a plot for each evaluation metric
-        figures = {}
-        for metric in self.evaluation_metrics:
-            fig, ax = plt.subplots(
-                num=f"{metric.name} over Active Learning Iterations", figsize=(8, 5)
-            )
-            
-            # Plot mean and std for each sampling method using the specified color
-            for sampling_method in self.sampling_methods:
-                # Extract arrays without overwriting the original dictionary variables
-                mean_arr = mean_accuracies[sampling_method.name][metric.name]
-                std_arr = std_accuracies[sampling_method.name][metric.name]
-
-                # Lookup the color for this method from the map
-                color = color_map.get(sampling_method.name, "black")  # default to black if not found
-
-                # Plot the mean curve
-                ax.plot(iterations, mean_arr, label=sampling_method.name, color=color)
-                # Plot error bars (±1 std)
-                ax.errorbar(
-                    iterations, mean_arr,
-                    yerr=std_arr, fmt='o',
-                    color=color, ecolor=color,
-                    capsize=3, elinewidth=1
-                )
-
-            # Customize axes and title
-            ax.set_xlabel("Active Learning Iteration")
-            ax.set_ylabel(metric.name)
-            ax.set_title(f"{metric.name} over Active Learning Iterations")
-            ax.legend()
-            ax.grid(True)
-
-            figures[metric.name] = fig
-
-        return figures

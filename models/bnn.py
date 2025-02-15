@@ -123,21 +123,3 @@ class BNN(nn.Module, ABC):
         """
         params = {k.replace('model.', ''): v.to(self.device) for k, v in params.items()}
         self.model.load_state_dict(params)
-
-    def params_to_dict(self) -> Dict[str, str]:
-        """
-        Converts hyperparameters into a dictionary.
-
-        Returns:
-            Dict[str, str]: Hyperparameter dictionary.
-        """
-        parameter_dict = {
-            "name": self.name,
-            "input_expansion": self.input_expansion,
-            "state_bounds": {k: str(v) for k, v in self.state_bounds.items()},
-            "action_bounds": {k: str(v) for k, v in self.action_bounds.items()},
-            "architecture": [
-                str(layer) for layer in self.model
-            ]
-        }
-        return parameter_dict
