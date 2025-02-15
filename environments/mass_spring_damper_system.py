@@ -123,6 +123,9 @@ class MassSpringDamperEnv(gym.Env, ABC):
         if self.screen is not None:
             pygame.quit()
             self.screen = None
+
+    def set_bound_shrink_factor(self, bound_shrink_factor: float) -> None:
+        self.bound_shrink_factor = bound_shrink_factor
     
     @abstractmethod
     def params_to_dict(self) -> Dict[str, str]:

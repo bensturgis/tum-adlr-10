@@ -59,7 +59,7 @@ class MultiStepPredictionErrorEvaluator(EvaluationMetric):
                 sampled_action = true_env.action_space.sample()
 
                 # Step in the true environment
-                next_state, terminated, truncated = true_env.step_no_reward(sampled_action)
+                next_state, _, terminated, truncated, _ = true_env.step(sampled_action)
 
                 # If the episode ends, stop collecting
                 if terminated or truncated:

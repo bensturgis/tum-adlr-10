@@ -59,7 +59,7 @@ class ReacherEnv(gym.Env, ABC):
 
         # Factor by which to shrink maximum/minimum state bounds to find sampling bounds for creating
         # a test set
-        self.bound_shrink_factor = 0.06
+        self.bound_shrink_factor = 1.0
 
         # Input expansion disabled since the magnitude of the state remains approximately constant
         self.input_expansion = False
@@ -133,6 +133,9 @@ class ReacherEnv(gym.Env, ABC):
         if self.screen is not None:
             pygame.quit()
             self.screen = None
+
+    def set_bound_shrink_factor(self, bound_shrink_factor: float) -> None:
+        self.bound_shrink_factor = bound_shrink_factor
 
     @abstractmethod
     def params_to_dict(self) -> Dict[str, Any]:
