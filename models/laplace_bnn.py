@@ -119,9 +119,11 @@ class LaplaceBNN(BNN):
         Returns:
             torch.Tensor: The output prediction of shape (batch_size, output_dim).
         """
-        x = torch.cat([state, action], dim=1)
-        return self.model(x)
-
+        input = torch.cat([state, action], dim=1)
+        if self.input_expansion:
+            with torch.no_grad():
+                input = self.expand_input(input)
+        return self.model(input)
     
     def params_to_dict(self) -> Dict[str, str]:
         """

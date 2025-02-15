@@ -519,8 +519,14 @@ def reconstruct_envs(
         # Extract hyperparameters of learned environment
         if hyperparams["learned_env"]["model"]["name"] == "Monte Carlo Dropout Bayesian Neural Network":
             state_bounds = hyperparams["learned_env"]["model"]["state_bounds"]
+            state_bounds = {
+                int(key): list(map(float, value.strip("[]").split())) for key, value in state_bounds.items()
+            }
             state_dim = hyperparams["learned_env"]["model"].get("state_dim", len(state_bounds))
             action_bounds = hyperparams["learned_env"]["model"]["action_bounds"]
+            action_bounds = {
+                int(key): list(map(float, value.strip("[]").split())) for key, value in action_bounds.items()
+            }
             action_dim = hyperparams["learned_env"]["model"].get("action_dim", len(action_bounds))
             input_expansion = hyperparams["learned_env"]["model"]["input_expansion"]
             hidden_size = hyperparams["learned_env"]["model"].get("hidden_size", 72)
@@ -538,12 +544,18 @@ def reconstruct_envs(
             )
         elif hyperparams["learned_env"]["model"]["name"] == "Laplace Approximation Bayesian Neural Network":
             state_bounds = hyperparams["learned_env"]["model"]["state_bounds"]
+            state_bounds = {
+                int(key): list(map(float, value.strip("[]").split())) for key, value in state_bounds.items()
+            }
             state_dim = hyperparams["learned_env"]["model"].get("state_dim", len(state_bounds))
             action_bounds = hyperparams["learned_env"]["model"]["action_bounds"]
+            action_bounds = {
+                int(key): list(map(float, value.strip("[]").split())) for key, value in action_bounds.items()
+            }
             action_dim = hyperparams["learned_env"]["model"].get("action_dim", len(action_bounds))
             input_expansion = hyperparams["learned_env"]["model"]["input_expansion"]
             hidden_size = hyperparams["learned_env"]["model"].get("hidden_size", 72)
-
+            print(f"State bounds: {state_bounds}")
             dynamics_model = LaplaceBNN(
                 state_dim=state_dim,
                 action_dim=action_dim,
