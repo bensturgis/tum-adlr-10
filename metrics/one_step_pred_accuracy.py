@@ -26,7 +26,7 @@ class OneStepPredictionErrorEvaluator(EvaluationMetric):
         """
         self.learned_env = learned_env
         self.num_samples = num_samples
-        self.name = "One Step Prediction Error"
+        self.name = "One-Step Prediction Error"
         self.dataset = create_test_dataset(
             true_env=true_env,
             num_samples=num_samples,

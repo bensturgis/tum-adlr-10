@@ -2,6 +2,9 @@ import gymnasium as gym
 import imageio.v2 as imageio
 import json
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
+import matplotlib.ticker as mtick
+from matplotlib.ticker import MultipleLocator
 from models.laplace_bnn import LaplaceBNN
 import numpy as np
 from pathlib import Path
@@ -597,8 +600,9 @@ def reconstruct_envs(
         return true_env, learned_env
 
 def plot_prediction_error(
-        experiment: int, learned_env: gym.Env, metrics: List[EvaluationMetric], num_al_iterations: int = None,
-        eval_repetitions: List[int] = None, show: bool = True, save: bool = True,
+        experiment: int, learned_env: gym.Env, metrics: List[EvaluationMetric],
+        num_al_iterations: int = None, eval_repetitions: List[int] = None,
+        plot_variances: bool = True, show: bool = True, save: bool = True,
         device: torch.device = torch.device('cpu')
     ):
     # Construct the path to the state experiment folder
@@ -649,22 +653,24 @@ def plot_prediction_error(
     figures = create_prediction_error_plot(
         mean_errors=mean_errors,
         std_errors=std_errors,
-        num_al_iterations=num_al_iterations
+        num_al_iterations=num_al_iterations,
+        env_name=learned_env.name,
+        plot_variances=plot_variances
     )
 
     # Save the error plots
     if save:
         for metric in metrics:
-            plot_path = experiment_path / f"{metric.name.lower().replace(' ', '_')}_plot.png"
+            plot_path = experiment_path / f"{metric.name.lower().replace(' ', '_').replace('-', '_')}_plot.png"
             counter = 2
 
             # Check if the file exists and append _01, _02, etc.
             while plot_path.exists():
-                plot_path = experiment_path / f"{metric.name.lower().replace(' ', '_')}_plot_{counter:02d}.png"
+                plot_path = experiment_path / f"{metric.name.lower().replace(' ', '_').replace('-', '_')}_plot_{counter:02d}.png"
                 counter += 1
 
             figures[metric.name].savefig(plot_path, bbox_inches="tight", dpi=300)
-            print(f"{metric} plot saved to {plot_path}.")
+            print(f"{metric.name} plot saved to {plot_path}.")
 
     if show:
         plt.show()
@@ -672,7 +678,8 @@ def plot_prediction_error(
 def create_prediction_error_plot(
     mean_errors: Dict[str, Dict[str, List[float]]],
     std_errors: Dict[str, Dict[str, List[float]]],
-    num_al_iterations: int
+    num_al_iterations: int, env_name: str, 
+    plot_variances: bool = True
 ) -> Dict[str, plt.Figure]:
     """
     Plots the mean and standard deviation of prediction errors for different sampling
@@ -715,19 +722,30 @@ def create_prediction_error_plot(
 
             # Plot the mean curve
             ax.plot(iterations, mean_arr, label=sampling_method, color=color)
-            # Plot error bars (±1 std)
-            ax.errorbar(
-                iterations, mean_arr,
-                yerr=std_arr, fmt='o',
-                color=color, ecolor=color,
-                capsize=3, elinewidth=1
-            )
+
+            # Plot individual data points for every iteration
+            ax.scatter(iterations, mean_arr, color=color, alpha=1.0, marker='o')
+
+            # Plot error bars (±1 std) if plot_variances is True
+            if plot_variances:
+                ax.errorbar(
+                    iterations, mean_arr,
+                    yerr=std_arr, fmt='o',
+                    color=color, ecolor=color,
+                    capsize=3, elinewidth=1
+                )
+
+            # Set integer x-axis labels
+            ax.xaxis.set_major_locator(MultipleLocator(5))
+
+            # Increase the size of the numbers on x- and y-axis
+            ax.tick_params(axis='both', which='major', labelsize=12)
 
         # Customize axes and title
-        ax.set_xlabel("Active Learning Iteration")
-        ax.set_ylabel(metric)
-        ax.set_title(f"{metric} over Active Learning Iterations")
-        ax.legend()
+        ax.set_xlabel("Active Learning Iteration", fontsize=14)
+        ax.set_ylabel(metric, fontsize=14)
+        ax.set_title(f"{env_name}: {metric}", fontsize=16, pad=14)
+        ax.legend(fontsize=14)
         ax.grid(True)
 
         figures[metric] = fig

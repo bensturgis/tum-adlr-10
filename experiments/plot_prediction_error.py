@@ -7,10 +7,13 @@ from metrics.multi_step_pred_accuracy import MultiStepPredictionErrorEvaluator
 from utils.visualization_utils import get_horizon, plot_prediction_error, reconstruct_envs
 
 EXPERIMENT = 2
+# EVAL_REPETITIONS = [0, 1, 2, 3, 4] # for reacher (experiment 1)
+EVAL_REPETITIONS = [0, 1, 2, 3] # for mass-spring-damper system (experiment 2)
+PLOT_VARIANCES = True
 DEVICE = "cpu"            # PyTorch device for evaluation
 
 # General hyperparamters for prediction error
-BOUND_SHRINK_FACTOR = 0.8
+BOUND_SHRINK_FACTOR = 1.0
 
 # Hyperparameters for one-step prediction error
 NUM_SAMPLES = 1250        # Number of (state, action, next_state) samples (N_1 = 1250 in paper)
@@ -47,4 +50,6 @@ plot_prediction_error(
     experiment=EXPERIMENT,
     learned_env=learned_env,
     metrics=[one_step_prediction_error],
+    eval_repetitions=[0, 1, 2, 3],
+    plot_variances=PLOT_VARIANCES
 )

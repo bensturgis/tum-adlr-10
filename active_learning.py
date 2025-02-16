@@ -192,16 +192,21 @@ class ActiveLearningEvaluator():
 
         # Plot and save the results
         if show or save:
-            figures = create_prediction_error_plot(mean_errors=mean_errors,
-                                                   std_errors=std_errors,
-                                                   num_al_iterations=self.num_al_iterations)
+            figures = create_prediction_error_plot(
+                mean_errors=mean_errors,
+                std_errors=std_errors,
+                num_al_iterations=self.num_al_iterations,
+                env_name=self.learned_env.name
+            )
         
         if save:
-            self.save_active_learning_results(figures=figures,
-                                              mean_errors=mean_errors,
-                                              std_errors=std_errors,
-                                              state_trajectories=state_trajectories,
-                                              training_results=training_results)
+            self.save_active_learning_results(
+                figures=figures,
+                mean_errors=mean_errors,
+                std_errors=std_errors,
+                state_trajectories=state_trajectories,
+                training_results=training_results
+            )
         
         if show:
             plt.show()
@@ -273,7 +278,7 @@ class ActiveLearningEvaluator():
 
         # Save the error plots
         for metric in self.evaluation_metrics:
-            plot_path = save_dir / f"{metric.name.lower().replace(' ', '_')}_plot.png"
+            plot_path = save_dir / f"{metric.name.lower().replace(' ', '_').replace('-', '_')}_plot.png"
             figures[metric.name].savefig(plot_path, bbox_inches="tight", dpi=300)
             print(f"{metric.name} plot saved to {plot_path}.")
 
