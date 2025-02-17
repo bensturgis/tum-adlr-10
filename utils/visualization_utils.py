@@ -130,7 +130,7 @@ def plot_state_space_trajectory(
 
 def plot_msd_uncertainty(
     experiment: int, sampling_method: str, num_al_iterations: int, true_env: gym.Env, horizon: int,
-    repetition: int = 0, show_plot: bool = True, model = None, single_action=None
+    repetition: int = 0, show_plot: bool = True, title_size:float = 10, show_colorbar: bool = True, model = None, single_action=None
 ):
     """
     Plot the predictive variance over all state and action space for a Bayesian Model.
@@ -207,11 +207,19 @@ def plot_msd_uncertainty(
     mean_var_flat = var_flat.reshape([pixels_per_axis*pixels_per_axis, pixels_per_action]).mean(axis=1) # average over action [pixels_per_axis^2,]
 
     # plot 2D heatmap
-    plt.figure(figsize=(12, 10))
+    if show_colorbar:
+        plt.figure(figsize=(6.3,5))
+    else:
+        plt.figure(figsize=(5,5))
     X, V = np.meshgrid(x, v) # 2D meshgrid for plot
     Z = mean_var_flat.reshape([pixels_per_axis, pixels_per_axis]) # map of uncertainty
     plt.pcolormesh(X, V, Z, shading='auto', cmap='viridis', vmax=0.2, vmin=0.02)
-    plt.colorbar(label='uncertainty prediction')
+    if show_colorbar:
+        plt.colorbar(label='uncertainty prediction')
+    # plt.gca().set_aspect(1, adjustable="datalim")
+    # plt.gca().set_aspect("equal", adjustable="box")
+    # plt.axis("scaled")
+    # plt.gca().set_adjustable("box")
 
     ## 2. plot explored trajectories till current iteration
     # Construct the path to the state trajectories folder
@@ -229,17 +237,18 @@ def plot_msd_uncertainty(
         if iteration < trajectories.shape[0]:
             trajectory = trajectories[iteration]  # Shape: (horizon, state_dim)
             # plt.scatter(trajectory[:, 0], trajectory[:, 1], label=f"Iteration {iteration}", s=10)
-            plt.plot(trajectory[:, 0], trajectory[:, 1], label=f"Iteration {iteration}")
+            plt.plot(trajectory[:, 0], trajectory[:, 1], label=f"Iteration {iteration}", linewidth=0.9)
     if num_al_iterations < trajectories.shape[0]:
         trajectory = trajectories[num_al_iterations]
-        plt.plot(trajectory[:, 0], trajectory[:, 1], linestyle="--", alpha=0.6, label=f"Iteration {num_al_iterations}")
+        plt.plot(trajectory[:, 0], trajectory[:, 1], linestyle="--", alpha=0.6, label=f"Iteration {num_al_iterations}", linewidth=0.8)
 
     plt.xlabel('Position')
     plt.ylabel('Velocity')
     plt.xlim(state_bounds[0][0], state_bounds[0][1])
     plt.ylim(state_bounds[1][0], state_bounds[1][1])
     
-    plt.title(f'{sampling_method} at Iteration {num_al_iterations}')
+    if title_size > 0:
+        plt.title(f'{sampling_method} at Iteration {num_al_iterations}', fontsize=title_size)
     # plt.title(f'State Space Uncertainty and explored Trajectories of Iteration {num_al_iterations}')
     # plt.legend()
     
@@ -251,7 +260,7 @@ def plot_msd_uncertainty(
 
 def plot_reacher_uncertainty(
     experiment: int, sampling_method: str, num_al_iterations: int, true_env: gym.Env, horizon: int,
-    repetition: int = 0, show_plot: bool = True, model = None
+    repetition: int = 0, show_plot: bool = True, show_colorbar: bool = True, title_size:float = 10, model = None
 ):
     """
     Plot the predictive variance over all state and action space for a Bayesian Model.
@@ -346,9 +355,12 @@ def plot_reacher_uncertainty(
     recursion_axis(redundant_axes)
 
     # plot 2D heatmap
-    plt.figure(figsize=(12, 10))
+    plt.figure()
     plt.pcolormesh(T1, T2, Z, shading='auto', cmap='viridis', vmax=1.2, vmin=0.2)
-    plt.colorbar(label='uncertainty prediction')
+    if show_colorbar:
+        plt.colorbar(label='uncertainty prediction')
+    plt.axis("equal")
+    plt.gca().set_adjustable("box")
 
     ## 2. plot explored trajectories till current iteration
     # Construct the path to the state trajectories folder
@@ -373,7 +385,7 @@ def plot_reacher_uncertainty(
             # Plot theta_1 and theta_2 instead of sine/cosine representation
             theta_1 = np.arctan2(trajectory[:, 2], trajectory[:, 0])
             theta_2 = np.arctan2(trajectory[:, 3], trajectory[:, 1])
-            plt.scatter(theta_1, theta_2, label=f"Iteration {iteration}", s=10)
+            plt.scatter(theta_1, theta_2, label=f"Iteration {iteration}", s=3)
             # plt.plot(theta_1, theta_2, label=f"Iteration {iteration}")
     # # Set minimum and maximum values
     plt.xlim(-np.pi, np.pi)
@@ -397,14 +409,15 @@ def plot_reacher_uncertainty(
     #         # plt.scatter(x, y, label=f"Iteration {iteration}", s=10)
     #         plt.plot(x, y, label=f"Iteration {iteration}")
 
-    
-    plt.title(f'{sampling_method} at Iteration {num_al_iterations}')
+    if title_size > 0:
+        plt.title(f'{sampling_method} at Iteration {num_al_iterations}', fontsize=title_size)
     # plt.legend()
     
     if show_plot:
         plt.show()
     else:
         plt.savefig(experiment_path / f'{sampling_method}_var_rep{repetition}_iter{num_al_iterations}.png', dpi=300, bbox_inches='tight')
+    plt.close()
 
 def plot_state_distribution(
     dataset: TensorDataset, 
@@ -441,6 +454,10 @@ def plot_state_distribution(
     plt.tight_layout()
     plt.show()
 
+from PIL import Image, ImageSequence
+from PIL import Image, ImageSequence
+import re
+import imageio.v2 as imageio
 def generate_GIF(experiment: int, sampling_method: str, repetition: int = 0):
     base_path = Path(__file__).parent.parent / "experiments" / "active_learning_evaluations"
     image_path = base_path / f"experiment_{experiment}"
@@ -751,3 +768,58 @@ def create_prediction_error_plot(
         figures[metric] = fig
 
     return figures
+
+def compare_GIF(experiment: int, repetition: int = 0):
+    # load corresponding model
+    base_path = Path(__file__).parent.parent / "experiments" / "active_learning_evaluations"
+    image_path = base_path / f"experiment_{experiment}"
+
+    gif1 = Image.open(image_path / f"Random Exploration_var_rep{repetition}.gif")
+    gif2 = Image.open(image_path / f"Random Sampling Shooting_var_rep{repetition}.gif")
+    gif3 = Image.open(image_path / f"Soft Actor Critic_var_rep{repetition}.gif")
+
+    frames1 = [frame.copy() for frame in ImageSequence.Iterator(gif1)]
+    frames2 = [frame.copy() for frame in ImageSequence.Iterator(gif2)]
+    frames3 = [frame.copy() for frame in ImageSequence.Iterator(gif3)]
+
+    min_frames = min(len(frames1), len(frames2), len(frames3))
+    frames1, frames2, frames3 = frames1[:min_frames], frames2[:min_frames], frames3[:min_frames]
+
+    new_frames = []
+    for f1, f2, f3 in zip(frames1, frames2, frames3):
+        width, height = f1.size
+        width_last, height = f3.size
+        new_frame = Image.new("RGB", (width * 2 + width_last, height))
+        new_frame.paste(f1, (0, 0))
+        new_frame.paste(f2, (width, 0))
+        new_frame.paste(f3, (width * 2, 0))
+        new_frames.append(new_frame)
+    for i in range(8):
+        new_frames.append(new_frames[-1])
+
+    output_path = image_path / f"comparison_rep{repetition}.gif"
+    imageio.mimsave(output_path, [img.convert('RGB') for img in new_frames], duration=300, format='GIF', loop=0)
+
+    print(f"combined GIF saved to: {output_path}")
+
+
+def compare_png(experiment: int, repetition: int = 0, iteration: int = 25):
+    # load corresponding model
+    base_path = Path(__file__).parent.parent / "experiments" / "active_learning_evaluations"
+    image_path = base_path / f"experiment_{experiment}"
+
+    png1 = Image.open(image_path / f"Random Exploration_var_rep{repetition}_iter{iteration}.png")
+    png2 = Image.open(image_path / f"Random Sampling Shooting_var_rep{repetition}_iter{iteration}.png")
+    png3 = Image.open(image_path / f"Soft Actor Critic_var_rep{repetition}_iter{iteration}.png")
+
+    width, height = png1.size
+    width_last, height = png3.size
+    mosaic = Image.new("RGB", (width * 2 + width_last, height))
+    mosaic.paste(png1, (0, 0))
+    mosaic.paste(png2, (width, 0))
+    mosaic.paste(png3, (width * 2, 0))
+
+    output_path = image_path / f"comparison_rep{repetition}_iter{iteration}.png"
+    mosaic.save(output_path, format="PNG")
+
+    print(f"combined var plot saved to: {output_path}")
