@@ -5,6 +5,8 @@ This project explores data-efficient learning of unknown dynamical systems using
 ## Key Features
 
 - **Bayesian Neural Network Model**: Learns the system dynamics while quantifying uncertainty.
+  - Monte-Carlo Dropout
+  - Laplace Approximation
 - **Active Learning Strategies**:
   - Random Sampling Shooting with Model Predictive Control
   - Soft Actor Critic (SAC) policy optimization
@@ -28,13 +30,21 @@ Our methods show superior sample efficiency compared to random exploration, than
 You can find the full implementation and experiments in this repository.
 
 TUM-ADLR-10/
+
 ├── environments/               # Custom environments
+
 ├── experiments/                # Scripts, results and saved data for experiments
+
 ├── metrics/                    # Evaluation metrics
+
 ├── models/                     # Neural network model definitions
+
 ├── sampling_methods/           # Active learning exploration algorithms
+
 ├── utils/                      # Utility functions
+
 └── weights/                    # Trained model weights
+
 
 ## Poster and Paper
 This repository is based on our course project for TUM ADLR course. For presentation poster and report paper, see folder presentation/ .
