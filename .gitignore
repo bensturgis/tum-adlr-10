@@ -2,7 +2,6 @@ __pycache__/
 weights/
 experiments/test.ipynb
 experiments/test_mc_dropout.ipynb
-*.pdf
 *.png
 *.zip
 experiments/active_learning_evaluations/
