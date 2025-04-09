@@ -1,47 +1,40 @@
-# tum-adlr-10
-## TODO
-- Create presentation
-- Create plots for presentation
-- Try to find reason that causes random exploration to perform better than random sampling shooting
-  - use random exploration to sample data points for the one-step predicitive accuracy evaluation
-    instead of just randomly sampling states from the observation space and actions from the action space
-    (temporarily hard coded fix in `one_step_pred_accuracy.py` specifically for spring-mass-damper system
-    and short horizon)
-  - implement reacher environment from paper, visualize the state space exploration and compare results with
-    those from the paper
-  - try RS without MPC
-    - it's better? At least got similar performance.
-    -> RS seems to favor exploring on velocity instead of position dimension (based on trajectory plot)
-  - try use the older version of RS+MPC (without parellelizing batch of trajectories)
-    - I checked the code and it should be correct
-  - try print out variance value and total differential entropy
-  - try reset input limitation
-    - based on the trajectory plot, the datapoints seems to be too dispersed, which means input are too large
-    - I tried set it to [-3,3], seems to be better, unlike RE, RS is trying to "reach out" to further regions
-  - visualize predictive var on the whole state space
-- Set up server to run random sampling shooting + MPC
+# Active Learning for Dynamical Systems using Bayesian Neural Networks
 
-## Presentation Outline
-- Introduction to our topic/Introduction to the problem we are trying to solve (Yufei)
-  - hard to explore, use as few as possible samples to learn physical dynamic
-  - Mention the difference to traditional reinforcement learning
-- Presentation of active learning and random sampling shooting via flow chart (Ben)
-  - Active Learning: Algorithm 1
-  - RS: Algorithm 4
-- Experiments we have conducted so far including plots (Yufei)
-  - Environment we use (mass-spring-damper system)
-  - Model performances BNN
-    - Learning curves including train and test error
-  - Active Learning evaluation
-    - RS implementation
-    - explain the plot
-    - explain the results
-  - Plot for exploration efficiency
-    - visualization methods
-      - Save weights for le every activearning iteration to plot bayesian prediction variance (Yufei)
-      - Create training plots for every ative learning iteration (Ben)
-- What are the next milestones? Are there any changes to the research hypothesis or problem statement from the pro-posal? (Ben)
-  - Compare to other approaches from paper (soft-actor critic)
-  - (Increase the model complexity)
-  - instead of scaling complexity, we might want to delve deeper into BNN and study if it is reasonable to use MC-Dropout for this task
-    and we'll try other active learning method
+This project explores data-efficient learning of unknown dynamical systems using active learning with Bayesian Neural Networks (BNNs). When collecting real-world data is costly, actively selecting informative samples can significantly improve sample efficiency.
+
+## Key Features
+
+- **Bayesian Neural Network Model**: Learns the system dynamics while quantifying uncertainty.
+- **Active Learning Strategies**:
+  - Random Sampling Shooting with Model Predictive Control
+  - Soft Actor Critic (SAC) policy optimization
+- **Feature Expansion**: Ensures uncertainty estimates remain invariant to input norm.
+- **Custom Environments**:
+  - Mass-Spring-Damper System
+  - 2D Reacher Task
+
+## Evaluation
+
+We evaluate performance based on:
+- One-step and multi-step prediction error
+- State space exploration efficiency
+
+## Results
+
+Our methods show superior sample efficiency compared to random exploration, thanks to uncertainty-guided data collection.
+
+## Code and Experiments
+
+You can find the full implementation and experiments in this repository.
+
+TUM-ADLR-10/
+├── environments/               # Custom environments
+├── experiments/                # Scripts, results and saved data for experiments
+├── metrics/                    # Evaluation metrics
+├── models/                     # Neural network model definitions
+├── sampling_methods/           # Active learning exploration algorithms
+├── utils/                      # Utility functions
+└── weights/                    # Trained model weights
+
+## Poster and Paper
+This repository is based on our course project for TUM ADLR course. For presentation poster and report paper, see folder presentation/ .
